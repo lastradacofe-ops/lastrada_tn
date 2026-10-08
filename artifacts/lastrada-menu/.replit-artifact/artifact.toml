@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "LASTRADA Café-Resto"
+description = "A mobile-first digital menu and local admin prototype for LASTRADA Café-Resto in Tunisia. Browse the menu in French, Arabic, or English and preview menu editing without connecting external services."
+version = "1.0.0"
+id = "artifacts/lastrada-menu"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18744
+
+[services.development]
+run = "pnpm --filter @workspace/lastrada-menu run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/lastrada-menu", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/lastrada-menu/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18744"
+BASE_PATH = "/"
