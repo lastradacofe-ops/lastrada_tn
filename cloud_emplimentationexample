@@ -1,0 +1,156 @@
+Viewed vite.config.ts:1-86
+
+# ☁️ Cloud Implementation & Infrastructure Documentation
+
+This guide details the complete cloud architecture, hosting setup, network traffic flow, database management, and service integrations for the **Stillroom / Complexe Rouis** platform.
+
+---
+
+## 1. Cloud Architecture & Infrastructure Map
+
+```mermaid
+flowchart TB
+    subgraph Client ["Client Devices"]
+        Browser["Desktop & Mobile Browsers"]
+    end
+
+    subgraph NetlifyEdge ["Netlify Global Edge Network (CDN)"]
+        direction TB
+        NetlifyStatic["Static SPA Assets<br/>(React 19 + Tailwind CSS)"]
+        NetlifyProxy["Edge Reverse Proxy<br/>(/api/* rewrite)"]
+    end
+
+    subgraph RenderCloud ["Render.com (Backend Compute)"]
+        direction TB
+        RenderService["Node.js Web Service<br/>(Express 5 REST API)"]
+        KeepAlive["Keep-Alive Pinger<br/>(06:00–00:00 Tunis Time)"]
+        NotificationQueue["Email Queue Worker<br/>(Background Poll Loop)"]
+    end
+
+    subgraph AivenCloud ["Aiven Cloud Platform"]
+        AivenPG[("Managed PostgreSQL DB<br/>• TLS/SSL Enforced<br/>• Automated Backups<br/>• High Availability")]
+    end
+
+    subgraph ExternalSaaS ["Managed Cloud SaaS Services"]
+        ClerkSaaS["Clerk Identity Cloud<br/>• Staff Auth & JWT Signing<br/>• Role-Based Access Control"]
+        SMTPCloud["Cloud SMTP Provider<br/>(Gmail / SendGrid / SES)<br/>• Transactional Email Delivery"]
+    end
+
+    %% Flow connections
+    Browser -->|1. HTTPS Request| NetlifyEdge
+    NetlifyEdge -->|Serves HTML/JS/CSS| Browser
+    Browser -->|2. /api/* Requests| NetlifyProxy
+    NetlifyProxy -->|3. Proxied HTTPS API Calls| RenderService
+    
+    RenderService -->|4. Authenticates JWT Tokens| ClerkSaaS
+    RenderService -->|5. Queries / Mutations (SSL)| AivenPG
+    
+    KeepAlive -.->|Self-Health Checks (Keep Warm)| RenderService
+    NotificationQueue -->|Fetches Pending Jobs| AivenPG
+    NotificationQueue -->|Dispatches Outbound Emails| SMTPCloud
+```
+
+---
+
+## 2. Cloud Components & Provider Breakdown
+
+### 2.1 Cloud Frontend & Edge Proxy: **Netlify**
+* **Deployment Type**: Static Single Page Application (SPA) hosted on Netlify's Multi-Cloud Global CDN.
+* **Continuous Deployment**: Linked directly to Git. On every commit, Netlify triggers:
+  ```bash
+  pnpm --filter @workspace/spa-platform run build
+  ```
+* **Edge Routing Configuration** ([`netlify.toml`](file:///h:/SPA-PROJECT-main/netlify.toml)):
+  - **Single Page Routing**: Rewrites `/*` to `/index.html` with status `200` to support client-side routing (`wouter`).
+  - **API Reverse Proxy**: Rewrites `/api/*` directly to `https://spa-complexe-rouis.onrender.com/api/:splat` with status `200` (`force = true`).
+  - **Advantage**: Eliminates browser CORS issues and hides backend origins from direct client inspection.
+
+---
+
+### 2.2 Cloud Backend API: **Render.com**
+* **Service Type**: Render Web Service (Node.js environment).
+* **Live Endpoint**: `https://spa-complexe-rouis.onrender.com`
+* **Build & Start Commands**:
+  - **Build Command**: `pnpm --filter @workspace/api-server build` (bundles with `esbuild` into [`dist/index.mjs`](file:///h:/SPA-PROJECT-main/api/dist/index.mjs)).
+  - **Start Command**: `node --enable-source-maps ./api/dist/index.mjs`
+* **Port Binding**: Automatically binds to the cloud port provided by Render via `process.env.PORT`.
+* **Reverse Proxy Trust**: Configured with `app.set("trust proxy", 1)` to accurately detect real client IP addresses for rate-limiting behind Render and Netlify load balancers.
+
+---
+
+### 2.3 Cloud Database: **Aiven Cloud PostgreSQL**
+* **Service Type**: Fully managed cloud PostgreSQL instance.
+* **Why Aiven over Local Docker**: Eliminates local container setup, provides instant remote access for developers and staging servers, and offers automated failover and daily backups.
+* **Security & Connection**:
+  - Requires TLS/SSL encryption (`sslmode=require`).
+  - Configured via `DATABASE_URL` in backend environment variables.
+* **Schema Management**:
+  - Managed via **Drizzle ORM** (`@workspace/db`).
+  - Cloud schema initialization is run via script [`api/src/db/init-db.mjs`](file:///h:/SPA-PROJECT-main/api/src/db/init-db.mjs) or `pnpm --filter @workspace/api-server init-db`.
+
+---
+
+### 2.4 Cloud Identity & Access: **Clerk Cloud**
+* **Service Type**: Identity-as-a-Service (IDaaS).
+* **Role**:
+  - Handles authentication for managers, administrators, and staff members.
+  - Generates signed JWTs containing user claims, permissions, and roles (`manager`, `admin`, `staff`).
+* **Backend Verification**:
+  - Express uses `@clerk/express` middleware to intercept incoming requests and verify token validity cryptographically.
+  - Public booking endpoints remain open for frictionless guest reservations.
+
+---
+
+### 2.5 Cloud Email & Notification Delivery: **SMTP Cloud Provider**
+* **Driver**: Asynchronous transactional email delivery using **Nodemailer**.
+* **Worker Process** ([`api/src/modules/notifications/email-worker.ts`](file:///h:/SPA-PROJECT-main/api/src/modules/notifications/email-worker.ts)):
+  - Backend stores notifications in the Aiven DB queue table (`notifications`).
+  - An internal background worker periodically polls the queue, generates HTML emails, and dispatches them through the configured SMTP provider (e.g. Google Workspace SMTP, AWS SES, SendGrid, or Resend).
+
+---
+
+## 3. Cold Start & Availability Strategy (Keep-Alive Self-Pinger)
+
+Because Render free/starter web services spin down after 15 minutes of inactivity, the platform includes a **timezone-aware self-pinger** ([`api/src/lib/pinger.ts`](file:///h:/SPA-PROJECT-main/api/src/lib/pinger.ts)):
+
+1. **Operating Schedule**: Calculates local time in `Africa/Tunis` (UTC+1).
+2. **Active Window**: Active every day from **06:00 to 00:00 (Midnight)**.
+3. **Ping Interval**: Fires an internal HTTP GET request to `/api/healthz` every **10 minutes** during business hours.
+4. **Off-Hours Quiet Mode**: Stops pings between 00:00 and 06:00 to save free compute hours.
+
+---
+
+## 4. Cloud Environment Configuration Matrix
+
+| Service | Environment Variable | Purpose |
+| :--- | :--- | :--- |
+| **Render (Backend)** | `NODE_ENV=production` | Sets Node to production optimization mode |
+| | `PORT=5000` | Port assigned by Render runtime |
+| | `DATABASE_URL` | Aiven PostgreSQL connection URL (`?sslmode=require`) |
+| | `CLERK_PUBLISHABLE_KEY` | Clerk public key for token verification |
+| | `CLERK_SECRET_KEY` | Clerk private secret key for API validation |
+| | `RENDER_EXTERNAL_URL` | `https://spa-complexe-rouis.onrender.com` (for self-pinger) |
+| | `PUBLIC_APP_URL` | Frontend domain for booking management links |
+| | `GUEST_BOOKING_MANAGEMENT_SECRET` | 32-byte secret for cryptographically signed guest links |
+| | `TRUST_PROXY_HOPS=1` | Enables accurate IP resolution through Netlify & Render |
+| | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | SMTP server connection for notifications |
+| **Netlify (Frontend)** | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk public frontend key embedded in Vite build |
+| | `NODE_VERSION=20` (or modern) | Node version for Vite build pipeline |
+
+---
+
+## 5. Deployment Step-by-Step Summary
+
+```text
+1. Database Setup (Aiven):
+   Create Aiven PostgreSQL instance ➔ Copy URI with SSL ➔ Set DATABASE_URL in Render
+
+2. Backend Deployment (Render):
+   Link Git repository ➔ Choose Node environment ➔ Set Build/Start commands ➔ Add Environment Variables
+
+3. Frontend Deployment (Netlify):
+   Link Git repository ➔ Build command: 'pnpm --filter @workspace/spa-platform run build' ➔ Publish dir: 'web/dist'
+
+4. DNS & SSL:
+   Netlify and Render automatically provision and renew Let's Encrypt SSL/TLS certificates.
+```
