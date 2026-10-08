@@ -68,7 +68,7 @@ flowchart LR
 
 ## 4. System architecture
 
-Hosting: **Netlify** (frontend), **Render** (backend API), **Neon** (PostgreSQL), all deployed from the café's **GitHub** repository.
+Hosting: **vercel** (frontend), **Render** (backend API), **Neon** (PostgreSQL), all deployed from the café's **GitHub** repository.
 
 ```mermaid
 flowchart TB

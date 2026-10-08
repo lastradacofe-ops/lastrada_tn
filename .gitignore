@@ -53,3 +53,4 @@ Thumbs.db
 .env.local
 .env.*.local
 *.env
+/server/data/menu.json
