@@ -51,6 +51,9 @@ catalogs:
     tailwindcss:
       specifier: ^4.1.14
       version: 4.3.3
+    tsx:
+      specifier: ^4.21.0
+      version: 4.23.13
     vite:
       specifier: ^7.3.2
       version: 7.3.6
@@ -283,6 +286,9 @@ importers:
       pino-http:
         specifier: ^10.5.0
         version: 10.5.0
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.13
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10

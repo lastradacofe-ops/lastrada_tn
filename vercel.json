@@ -1,0 +1,15 @@
+{
+  "buildCommand": "pnpm --filter ./client run build",
+  "outputDirectory": "client/dist/public",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://YOUR_RENDER_SERVICE_NAME.onrender.com/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+
