@@ -5,7 +5,8 @@ import { seededCategories, seededProducts, type Category, type Product } from '.
 
 export type MenuStore = { categories: Category[]; products: Product[] };
 
-const dataDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../data');
+const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
+const dataDirectory = path.resolve(moduleDirectory, path.basename(moduleDirectory) === 'menu' ? '../../data' : '../data');
 const dataFile = path.join(dataDirectory, 'menu.json');
 let pendingWrite: Promise<void> = Promise.resolve();
 
@@ -24,7 +25,9 @@ function validMenu(value: unknown): value is MenuStore {
   for (const category of menu.categories) {
     if (!category || typeof category.id !== 'string' || !category.id ||
       typeof category.name !== 'string' || !category.name.trim() ||
-      !Number.isFinite(category.position) || categoryIds.has(category.id)) return false;
+      !Number.isFinite(category.position) ||
+      (category.available !== undefined && typeof category.available !== 'boolean') ||
+      categoryIds.has(category.id)) return false;
     categoryIds.add(category.id);
   }
   const productIds = new Set<string>();

@@ -7,7 +7,8 @@ const router: IRouter = Router();
 router.get("/menu", async (_request, response, next) => {
   try {
     const menu = await loadMenu();
-    const products = menu.products.filter((product) => product.available);
+    const activeCategories = new Set(menu.categories.filter((category) => category.available !== false).map((category) => category.id));
+    const products = menu.products.filter((product) => product.available && activeCategories.has(product.categoryId));
     const categoryIds = new Set(products.map((product) => product.categoryId));
     response.json({
       categories: menu.categories.filter((category) => categoryIds.has(category.id)),

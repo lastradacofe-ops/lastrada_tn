@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Router as WouterRouter, useLocation } from 'wouter';
 import {
-  ArrowDown, ArrowLeft, ArrowUp, Check, ChevronRight, Clock3, Coffee, Eye,
+  ArrowDown, ArrowLeft, ArrowUp, Check, ChevronLeft, ChevronRight, Clock3, Coffee, Eye,
   GripVertical, MapPin, Pencil, Plus, Search, Trash2, Utensils,
   X, ImagePlus, Smartphone, LogOut, Tag, LayoutList, Moon, Sun,
 } from 'lucide-react';
 import { adminText, Category, copyText, Locale, Product, translated } from './menu-data';
+import { FaFacebookF, FaInstagram } from 'react-icons/fa';
 
 type AdminTab = 'categories' | 'products' | 'preview';
 type ConfirmState = { title: string; message: string; action: () => void } | null;
@@ -63,9 +64,20 @@ function CustomerMenu({ categories, products, locale, onLocale, loading = false,
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Product | null>(null);
   const [activeCategory, setActiveCategory] = useState('');
+  const categoryNavRef = useRef<HTMLElement | null>(null);
+  const [categoryOverflow, setCategoryOverflow] = useState(false);
   const [offline, setOffline] = useState(false);
   const rtl = locale === 'ar';
   const visibleCategories = useMemo(() => [...categories].sort((a,b) => a.position-b.position), [categories]);
+  useEffect(() => {
+    const nav = categoryNavRef.current;
+    if (!nav) return;
+    const updateOverflow = () => setCategoryOverflow(nav.scrollWidth > nav.clientWidth + 2);
+    updateOverflow();
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, [visibleCategories]);
   const normalizedQuery = query.trim().toLocaleLowerCase(locale);
   const matchingProducts = useMemo(() => products.filter(p => {
     const content = [p.name, p.description || '', translated(p.name,p.translations,locale), translated(p.description || '',p.descriptions,locale)].join(' ').toLocaleLowerCase(locale);
@@ -97,6 +109,7 @@ function CustomerMenu({ categories, products, locale, onLocale, loading = false,
     setActiveCategory(id);
     document.getElementById(`category-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+  const scrollCategories = () => categoryNavRef.current?.scrollBy({ left: (rtl ? -1 : 1) * (categoryNavRef.current?.clientWidth || 0) * 0.72, behavior: 'smooth' });
   return <div className="menu-shell" dir={rtl ? 'rtl' : 'ltr'}>
     {!preview && <header className="menu-topbar">
       <a href={import.meta.env.BASE_URL} className="brand-lockup" data-testid="link-brand-home"><Brand /></a>
@@ -119,9 +132,12 @@ function CustomerMenu({ categories, products, locale, onLocale, loading = false,
     </section>
     <main className="menu-content">
       <div className="search-row"><Search size={17} color="#6E7F78" /><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={text.search} aria-label={text.search} data-testid="input-menu-search" /><span style={{fontSize:10,color:'#6E7F78',letterSpacing:'.12em'}}>{text.menu.toUpperCase()}</span></div>
-      <nav className="category-sticky" aria-label={text.menu}>
+      <div className="category-navigation">
+        <nav ref={categoryNavRef} className="category-sticky" aria-label={text.menu}>
         {visibleCategories.map(category => <button key={category.id} className={activeCategory === category.id ? 'active' : ''} onClick={() => jumpTo(category.id)} data-testid={`chip-category-${category.id}`}>{translated(category.name, category.translations, locale)}</button>)}
-      </nav>
+        </nav>
+        {categoryOverflow && <button type="button" className="category-next" onClick={scrollCategories} aria-label={locale === 'fr' ? 'D\u00e9filer vers les cat\u00e9gories suivantes' : 'Scroll to more categories'} title={locale === 'fr' ? 'Autres cat\u00e9gories' : 'More categories'} data-testid="button-scroll-categories">{rtl ? <ChevronLeft size={19}/> : <ChevronRight size={19}/>}</button>}
+      </div>
       {loading ? <div aria-label={text.loading}>{[1,2,3].map(n => <div className="skeleton" key={n} style={{height:75,margin:'18px 0'}} />)}</div> :
         matchingProducts.length === 0 ? <div className="empty-state" data-testid="empty-menu-search"><Search size={24} /><p>{text.noResults}</p></div> :
         visibleCategories.map(category => {
@@ -142,8 +158,8 @@ function CustomerMenu({ categories, products, locale, onLocale, loading = false,
       <div className="footer-inner">
         <section><div className="footer-brand">LASTRADA · CAFÉ-RESTO</div><p>{text.footer}</p><a href={`${import.meta.env.BASE_URL}admin`} data-testid="link-admin-entry">{text.adminEntry}</a></section>
         <section><h3>{text.hoursTitle}</h3><p data-testid="text-hours-placeholder">{text.hours}</p></section>
-        <section><h3>{text.addressTitle}</h3><p><MapPin size={13} style={{verticalAlign:'middle',marginInlineEnd:6}} />{text.address}</p><p className="placeholder-link" data-testid="text-itinerary-placeholder">{text.itinerary}</p></section>
-        <section><h3>{text.phoneTitle}</h3><p data-testid="text-phone-placeholder">{text.phonePlaceholder}</p><h3 style={{fontSize:17,marginTop:15}}>{text.socialTitle}</h3><p data-testid="text-social-placeholder">{text.socialPlaceholder}</p></section>
+        <section><h3>{text.addressTitle}</h3><p><MapPin size={13} style={{verticalAlign:'middle',marginInlineEnd:6}} />{text.address}</p><a className="placeholder-link" href="https://www.google.com/maps/search/?api=1&query=V59W%2BP5M%2C%20Tunis%2C%20Tunisia" target="_blank" rel="noreferrer" data-testid="link-itinerary">{text.itinerary}</a></section>
+        <section><h3>{text.phoneTitle}</h3><p data-testid="text-phone-placeholder"><a href="tel:+21651524107">+216 51 524 107</a></p><h3 style={{fontSize:17,marginTop:15}}>{text.socialTitle}</h3><div className="social-links" data-testid="text-social-placeholder"><a href="https://www.facebook.com/Lastrada24/" target="_blank" rel="noreferrer" aria-label="Facebook"><FaFacebookF size={17} aria-hidden="true"/><span>Facebook</span></a><a href="https://www.instagram.com/lastrada_lounge/?hl=en" target="_blank" rel="noreferrer" aria-label="Instagram"><FaInstagram size={18} aria-hidden="true"/><span>Instagram</span></a></div></section>
       </div>
     </footer>}
     {selected && <div className="detail-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setSelected(null); }} role="presentation">
@@ -159,7 +175,10 @@ function CustomerMenu({ categories, products, locale, onLocale, loading = false,
 
 function RoutedApp() {
   const [location, setLocation] = useLocation();
-  const [locale, setLocale] = useState<Locale>(() => (localStorage.getItem('lastrada-locale') as Locale) || 'fr');
+  const [locale, setLocale] = useState<Locale>(() => {
+    const savedLocale = localStorage.getItem('lastrada-locale');
+    return savedLocale === 'en' || savedLocale === 'ar' || savedLocale === 'fr' ? savedLocale : 'fr';
+  });
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('lastrada-theme') as Theme) || 'light');
   const [store, setStore] = useState<StoreState>({ categories: [], products: [] });
   const [tab, setTab] = useState<AdminTab>('categories');
@@ -266,6 +285,7 @@ function RoutedApp() {
     saveStore({ ...store, products: next });
   };
   const toggleProduct = (id: string) => saveStore({ ...store, products: store.products.map(p => p.id === id ? { ...p, available: !p.available } : p) });
+  const toggleCategory = (id: string) => saveStore({ ...store, categories: store.categories.map(c => c.id === id ? { ...c, available: c.available === false } : c) });
   const removeCategory = (id: string) => {
     const category = store.categories.find(c => c.id === id);
     setModal({ title:a.deleteCategory, message:`${category?.name || ''} — ${a.removedCategory}`, action:() => {
@@ -282,7 +302,7 @@ function RoutedApp() {
     event.preventDefault(); const form = new FormData(event.currentTarget); const name = String(form.get('name')).trim();
     if (!name) return;
     if (categoryDraft?.id) void applyMenu({ ...store, categories: store.categories.map(c => c.id === categoryDraft.id ? {...c,name} : c) }, adminToasts[locale].categoryUpdated);
-    else { const id = `cat-${Date.now()}`; void applyMenu({ ...store, categories:[...store.categories,{id,name,position:(store.categories.length+1)*1000}] }, adminToasts[locale].categoryAdded); }
+    else { const id = `cat-${Date.now()}`; void applyMenu({ ...store, categories:[...store.categories,{id,name,position:(store.categories.length+1)*1000,available:true}] }, adminToasts[locale].categoryAdded); }
   };
   const saveProduct = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); const form = new FormData(event.currentTarget);
@@ -292,21 +312,35 @@ function RoutedApp() {
     void applyMenu({ ...store, products:productDraft?.id ? store.products.map(p => p.id === item.id ? item : p) : [...store.products,item] }, productDraft?.id ? adminToasts[locale].productUpdated : adminToasts[locale].productAdded);
   };
   const imageChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]; if (!file) return;
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      notify(locale === 'fr' ? 'Choisissez un fichier image.' : locale === 'ar' ? 'يرجى اختيار ملف صورة.' : 'Please choose an image file.');
+      return;
+    }
     try {
       const bitmap = await createImageBitmap(file);
       const canvas = document.createElement('canvas');
       canvas.width = 800; canvas.height = 800;
       const context = canvas.getContext('2d');
       if (!context) throw new Error('Canvas unavailable');
-      const side = Math.min(bitmap.width, bitmap.height);
-      const sx = (bitmap.width - side) / 2; const sy = (bitmap.height - side) / 2;
-      context.drawImage(bitmap, sx, sy, side, side, 0, 0, 800, 800);
+      const scale = Math.min(800 / bitmap.width, 800 / bitmap.height);
+      const width = bitmap.width * scale;
+      const height = bitmap.height * scale;
+      context.fillStyle = '#f7f3eb';
+      context.fillRect(0, 0, 800, 800);
+      context.drawImage(bitmap, (800 - width) / 2, (800 - height) / 2, width, height);
       bitmap.close();
       const previewBlob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('WebP preview failed')), 'image/webp', 0.82));
-      const reader = new FileReader();
-      reader.onload = () => setProductDraft(draft => draft ? {...draft,image:String(reader.result)} : draft);
-      reader.readAsDataURL(previewBlob);
+      const previewUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Image preview failed'));
+        reader.onerror = () => reject(new Error('Image preview failed'));
+        reader.readAsDataURL(previewBlob);
+      });
+      setProductDraft(draft => draft ? {...draft,image:previewUrl} : draft);
     } catch {
       notify(locale === 'fr' ? 'Impossible de préparer cette image sur cet appareil.' : locale === 'ar' ? 'تعذر تجهيز الصورة على هذا الجهاز.' : 'This image could not be prepared on this device.');
     }
@@ -336,7 +370,7 @@ function RoutedApp() {
         <div className="admin-panel-head"><div><h2>{a.sections}</h2><p>{a.order}</p></div><button className="btn btn-primary" onClick={() => setCategoryDraft({id:'',name:'',position:store.categories.length})} data-testid="button-add-category"><Plus size={15} /> {a.add}</button></div>
         {!sortedCategories.length ? <div className="empty-state"><Tag size={25}/><p>{a.emptyCategory}</p></div> : sortedCategories.map((category,index) => <div className="admin-list-row" key={category.id} data-testid={`row-category-${category.id}`}>
           <GripVertical size={15} className="row-grip" /><div className="row-grow"><div className="row-title">{translated(category.name,category.translations,locale)}</div><div className="row-sub">{store.products.filter(p => p.categoryId === category.id).length} {a.items} · {a.position} {index + 1}</div></div>
-          <div className="row-actions"><button className="icon-btn" title={locale === 'fr' ? 'Monter' : locale === 'ar' ? 'تحريك للأعلى' : 'Move up'} aria-label={locale === 'fr' ? 'Monter' : locale === 'ar' ? 'تحريك للأعلى' : 'Move up'} disabled={!index} onClick={() => moveCategory(category.id,-1)} data-testid={`button-category-up-${category.id}`}><ArrowUp size={15}/></button><button className="icon-btn" title={locale === 'fr' ? 'Descendre' : locale === 'ar' ? 'تحريك للأسفل' : 'Move down'} aria-label={locale === 'fr' ? 'Descendre' : locale === 'ar' ? 'تحريك للأسفل' : 'Move down'} disabled={index === sortedCategories.length-1} onClick={() => moveCategory(category.id,1)} data-testid={`button-category-down-${category.id}`}><ArrowDown size={15}/></button><button className="btn btn-first" disabled={!index} onClick={() => moveCategoryFirst(category.id)} data-testid={`button-category-first-${category.id}`}><ArrowUp size={13}/>{a.moveFirst}</button><button className="icon-btn" title={a.editCategory} aria-label={a.editCategory} onClick={() => setCategoryDraft(category)} data-testid={`button-edit-category-${category.id}`}><Pencil size={15}/></button><button className="icon-btn" title={a.delete} aria-label={a.delete} onClick={() => removeCategory(category.id)} data-testid={`button-delete-category-${category.id}`}><Trash2 size={15}/></button></div>
+          <div className="row-actions"><button className={`switch ${category.available !== false ? 'on' : ''}`} onClick={() => toggleCategory(category.id)} role="switch" aria-checked={category.available !== false} aria-label={`${a.availableToggle}: ${category.name}`} data-testid={`toggle-category-availability-${category.id}`} /><button className="icon-btn" title={locale === 'fr' ? 'Monter' : locale === 'ar' ? 'تحريك للأعلى' : 'Move up'} aria-label={locale === 'fr' ? 'Monter' : locale === 'ar' ? 'تحريك للأعلى' : 'Move up'} disabled={!index} onClick={() => moveCategory(category.id,-1)} data-testid={`button-category-up-${category.id}`}><ArrowUp size={15}/></button><button className="icon-btn" title={locale === 'fr' ? 'Descendre' : locale === 'ar' ? 'تحريك للأسفل' : 'Move down'} aria-label={locale === 'fr' ? 'Descendre' : locale === 'ar' ? 'تحريك للأسفل' : 'Move down'} disabled={index === sortedCategories.length-1} onClick={() => moveCategory(category.id,1)} data-testid={`button-category-down-${category.id}`}><ArrowDown size={15}/></button><button className="btn btn-first" disabled={!index} onClick={() => moveCategoryFirst(category.id)} data-testid={`button-category-first-${category.id}`}><ArrowUp size={13}/>{a.moveFirst}</button><button className="icon-btn" title={a.editCategory} aria-label={a.editCategory} onClick={() => setCategoryDraft(category)} data-testid={`button-edit-category-${category.id}`}><Pencil size={15}/></button><button className="icon-btn" title={a.delete} aria-label={a.delete} onClick={() => removeCategory(category.id)} data-testid={`button-delete-category-${category.id}`}><Trash2 size={15}/></button></div>
         </div>)}
       </section>}
       {tab === 'products' && <section className="admin-panel">
@@ -368,6 +402,7 @@ function RoutedApp() {
     {productDraft && <div className="modal-backdrop" onMouseDown={e => { if(e.target === e.currentTarget) setProductDraft(null); }}><form className="modal-card" onSubmit={saveProduct} style={{maxHeight:'92dvh',overflow:'auto'}}>
       <div className="admin-panel-head"><div><div className="admin-kicker">{a.products}</div><h2>{productDraft.id ? a.editProduct : a.newProduct}</h2></div><button type="button" className="icon-btn" onClick={() => setProductDraft(null)} aria-label={a.cancel} data-testid="button-close-product-editor"><X size={16}/></button></div>
       <label className="image-picker" data-testid="picker-product-image">{productDraft.image && <img src={productDraft.image} alt={a.image}/>}<span><ImagePlus size={15} style={{verticalAlign:'middle',marginInlineEnd:6}}/>{a.image}</span><input type="file" accept="image/*" onChange={imageChange} aria-label={a.image} data-testid="input-product-image"/></label>
+      {productDraft.image && <button type="button" className="btn btn-quiet image-remove" onClick={() => setProductDraft({...productDraft,image:undefined})} data-testid="button-remove-product-image">{a.removeImage}</button>}
       <div className="notice">{a.imageNote}</div>
       <div className="form-grid">
         <div className="field"><label htmlFor="product-name">{a.name}</label><input id="product-name" name="name" defaultValue={productDraft.name} required maxLength={60} data-testid="input-product-name"/></div>
