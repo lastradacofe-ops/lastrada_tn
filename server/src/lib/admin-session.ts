@@ -5,7 +5,10 @@ const cookieName = "lastrada_admin";
 const sessionDurationMs = 12 * 60 * 60 * 1000;
 
 function configured() {
-  return Boolean(process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD && process.env.SESSION_SECRET);
+  const email = process.env.ADMIN_EMAIL?.trim();
+  const password = process.env.ADMIN_PASSWORD;
+  const secret = process.env.SESSION_SECRET;
+  return Boolean(email && password && secret && Buffer.byteLength(secret, "utf8") >= 32);
 }
 
 function safeEqual(left: string, right: string) {
@@ -28,7 +31,7 @@ function isValidSession(token: unknown) {
 }
 
 export function verifyAdminCredentials(email: unknown, password: unknown) {
-  if (!configured() || typeof email !== "string" || typeof password !== "string") return false;
+  if (!configured() || typeof email !== "string" || typeof password !== "string" || email.length > 254 || password.length > 1024) return false;
   return safeEqual(email.trim().toLowerCase(), process.env.ADMIN_EMAIL!.trim().toLowerCase()) &&
     safeEqual(password, process.env.ADMIN_PASSWORD!);
 }

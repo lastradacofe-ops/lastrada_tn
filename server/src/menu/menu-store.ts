@@ -1,6 +1,7 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { MenuPayloadSchema } from '@workspace/api-zod';
 import { seededCategories, seededProducts, type Category, type Product } from './seed-data';
 
 export type MenuStore = { categories: Category[]; products: Product[] };
@@ -10,6 +11,13 @@ const dataDirectory = path.resolve(moduleDirectory, path.basename(moduleDirector
 const dataFile = path.join(dataDirectory, 'menu.json');
 let pendingWrite: Promise<void> = Promise.resolve();
 
+export class MenuValidationError extends Error {
+  constructor() {
+    super('Menu payload is invalid.');
+    this.name = 'MenuValidationError';
+  }
+}
+
 function initialMenu(): MenuStore {
   return {
     categories: structuredClone(seededCategories),
@@ -17,10 +25,7 @@ function initialMenu(): MenuStore {
   };
 }
 
-function validMenu(value: unknown): value is MenuStore {
-  if (!value || typeof value !== 'object') return false;
-  const menu = value as Partial<MenuStore>;
-  if (!Array.isArray(menu.categories) || !Array.isArray(menu.products)) return false;
+function hasValidReferences(menu: MenuStore) {
   const categoryIds = new Set<string>();
   for (const category of menu.categories) {
     if (!category || typeof category.id !== 'string' || !category.id ||
@@ -41,11 +46,21 @@ function validMenu(value: unknown): value is MenuStore {
   return true;
 }
 
+function validMenu(value: unknown): value is MenuStore {
+  const parsed = MenuPayloadSchema.safeParse(value);
+  return parsed.success && hasValidReferences(parsed.data);
+}
+
 async function writeMenu(menu: MenuStore) {
   await mkdir(dataDirectory, { recursive: true });
   const tempFile = `${dataFile}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(tempFile, JSON.stringify(menu, null, 2), 'utf8');
-  await rename(tempFile, dataFile);
+  try {
+    await writeFile(tempFile, JSON.stringify(menu, null, 2), 'utf8');
+    await rename(tempFile, dataFile);
+  } catch (error) {
+    await unlink(tempFile).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function loadMenu(): Promise<MenuStore> {
@@ -62,8 +77,10 @@ export async function loadMenu(): Promise<MenuStore> {
 }
 
 export async function saveMenu(value: unknown): Promise<MenuStore> {
-  if (!validMenu(value)) throw new Error('Menu payload is invalid.');
-  const next: MenuStore = structuredClone(value);
+  const parsed = MenuPayloadSchema.safeParse(value);
+  if (!parsed.success) throw new MenuValidationError();
+  const next: MenuStore = structuredClone(parsed.data);
+  if (!hasValidReferences(next)) throw new MenuValidationError();
   const write = pendingWrite.then(() => writeMenu(next));
   pendingWrite = write.catch(() => undefined);
   await write;

@@ -1,7 +1,7 @@
 {
   "name": "LASTRADA Café-Resto",
   "short_name": "LASTRADA",
-  "description": "La carte de LASTRADA Café-Resto.",
+  "description": "Menu et informations de LASTRADA Café-Resto à Kairouan, Tunisie.",
   "start_url": "/admin",
   "scope": "/",
   "display": "standalone",

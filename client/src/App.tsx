@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Router as WouterRouter, useLocation } from 'wouter';
-import {
-  ArrowDown, ArrowLeft, ArrowUp, Check, ChevronLeft, ChevronRight, Clock3, Coffee, Eye,
-  GripVertical, MapPin, Pencil, Plus, Search, Trash2, Utensils,
-  X, ImagePlus, Smartphone, LogOut, Tag, LayoutList, Moon, Sun,
-} from 'lucide-react';
-import { adminText, Category, copyText, Locale, Product, translated } from './menu-data';
-import { FaFacebookF, FaInstagram } from 'react-icons/fa';
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronRight, Coffee, Eye, GripVertical, Pencil, Plus, Trash2, Utensils, X, ImagePlus, Smartphone, LogOut, Tag, LayoutList } from 'lucide-react';
+import { adminText, Category, Locale, Product, translated } from './menu-data';
+import { CustomerMenu } from './components/menu/CustomerMenu';
+import { Brand, formatPrice, MenuLanguage, ThemeToggle, type Theme } from './components/menu/menu-ui';
 
 type AdminTab = 'categories' | 'products' | 'preview';
 type ConfirmState = { title: string; message: string; action: () => void } | null;
-type Theme = 'light' | 'dark';
 type StoreState = { categories: Category[]; products: Product[] };
 
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -32,147 +28,6 @@ const adminToasts = {
   ar: { welcome:'مرحباً بك في المحرر المحلي.', categoryRemoved:'تم حذف الفئة.', productRemoved:'تم حذف المنتج.', categoryUpdated:'تم تحديث الفئة.', categoryAdded:'تمت إضافة الفئة.', productUpdated:'تم تحديث المنتج.', productAdded:'تمت إضافة المنتج.', reset:'تمت استعادة قائمة التجربة.', signout:'الخروج من التجربة' },
 } as const;
 
-function Brand({ small = false }: { small?: boolean }) {
-  return <div className="brand-lockup" aria-label="LASTRADA Café-Resto">
-    <div className="brand-mark">L</div><div><div className="brand-name">LASTRADA</div>{!small && <div className="brand-sub">CAFÉ · RESTO</div>}</div>
-  </div>;
-}
-
-function MenuLanguage({ locale, onChange }: { locale: Locale; onChange: (value: Locale) => void }) {
-  const label = locale === 'fr' ? 'Choisir la langue' : locale === 'ar' ? 'اختيار اللغة' : 'Choose language';
-  return <div className="language-switch" aria-label={label}>
-    {(['fr', 'ar', 'en'] as Locale[]).map(lang => <button key={lang} type="button" onClick={() => onChange(lang)} className={locale === lang ? 'active' : ''} data-testid={`language-${lang}`}>{lang.toUpperCase()}</button>)}
-  </div>;
-}
-
-function ThemeToggle({ theme, onToggle, locale }: { theme: Theme; onToggle: () => void; locale: Locale }) {
-  const label = theme === 'dark'
-    ? locale === 'fr' ? 'Passer au thème clair' : locale === 'ar' ? 'التبديل إلى المظهر الفاتح' : 'Switch to light theme'
-    : locale === 'fr' ? 'Passer au thème sombre' : locale === 'ar' ? 'التبديل إلى المظهر الداكن' : 'Switch to dark theme';
-  const Icon = theme === 'dark' ? Sun : Moon;
-  return <button className="theme-toggle" type="button" onClick={onToggle} aria-label={label} title={label}><Icon size={18} strokeWidth={1.7} /></button>;
-}
-
-function formatPrice(price: number) {
-  return `${Number(price).toFixed(3).replace('.', ',')} DT`;
-}
-
-function CustomerMenu({ categories, products, locale, onLocale, loading = false, preview = false, theme, onThemeToggle }: {
-  categories: Category[]; products: Product[]; locale: Locale; onLocale: (locale: Locale) => void; loading?: boolean; preview?: boolean; theme: Theme; onThemeToggle: () => void;
-}) {
-  const text = copyText[locale];
-  const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<Product | null>(null);
-  const [activeCategory, setActiveCategory] = useState('');
-  const categoryNavRef = useRef<HTMLElement | null>(null);
-  const [categoryOverflow, setCategoryOverflow] = useState(false);
-  const [offline, setOffline] = useState(false);
-  const rtl = locale === 'ar';
-  const visibleCategories = useMemo(() => [...categories].sort((a,b) => a.position-b.position), [categories]);
-  useEffect(() => {
-    const nav = categoryNavRef.current;
-    if (!nav) return;
-    const updateOverflow = () => setCategoryOverflow(nav.scrollWidth > nav.clientWidth + 2);
-    updateOverflow();
-    const observer = new ResizeObserver(updateOverflow);
-    observer.observe(nav);
-    return () => observer.disconnect();
-  }, [visibleCategories]);
-  const normalizedQuery = query.trim().toLocaleLowerCase(locale);
-  const matchingProducts = useMemo(() => products.filter(p => {
-    const content = [p.name, p.description || '', translated(p.name,p.translations,locale), translated(p.description || '',p.descriptions,locale)].join(' ').toLocaleLowerCase(locale);
-    return !normalizedQuery || content.includes(normalizedQuery);
-  }), [products, normalizedQuery, locale]);
-  useEffect(() => {
-    const update = () => setOffline(!navigator.onLine);
-    window.addEventListener('offline', update); window.addEventListener('online', update); update();
-    return () => { window.removeEventListener('offline', update); window.removeEventListener('online', update); };
-  }, []);
-  useEffect(() => {
-    if (!visibleCategories.length) return;
-    const observer = new IntersectionObserver(entries => {
-      const current = entries.filter(entry => entry.isIntersecting).sort((a,b) => a.boundingClientRect.top-b.boundingClientRect.top)[0];
-      if (current) setActiveCategory(current.target.id.replace('category-', ''));
-    }, { rootMargin: '-100px 0px -72% 0px' });
-    document.querySelectorAll('.menu-category').forEach(node => observer.observe(node));
-    return () => observer.disconnect();
-  }, [visibleCategories, matchingProducts]);
-  useEffect(() => {
-    if (!selected) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSelected(null);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [selected]);
-  const jumpTo = (id: string) => {
-    setActiveCategory(id);
-    document.getElementById(`category-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-  const scrollCategories = () => categoryNavRef.current?.scrollBy({ left: (rtl ? -1 : 1) * (categoryNavRef.current?.clientWidth || 0) * 0.72, behavior: 'smooth' });
-  return <div className="menu-shell" dir={rtl ? 'rtl' : 'ltr'}>
-    {!preview && <header className="menu-topbar">
-      <a href={import.meta.env.BASE_URL} className="brand-lockup" data-testid="link-brand-home"><Brand /></a>
-      <div className="menu-topbar-actions"><ThemeToggle theme={theme} onToggle={onThemeToggle} locale={locale} /><MenuLanguage locale={locale} onChange={onLocale} /></div>
-    </header>}
-    <section className="hero">
-      <div className="hero-visual">
-        <div className="hero-art">
-          <img className="hero-photo" src={`${import.meta.env.BASE_URL}lastrada-interior.jpg`} alt={locale === 'fr' ? 'Intérieur du café LASTRADA' : locale === 'ar' ? 'الديكور الداخلي لمقهى لاستـرادا' : 'Interior of LASTRADA café'} fetchPriority="high" data-testid="img-menu-hero" />
-          <span className="hero-art-orbit" aria-hidden="true"><span className="hero-art-orbit-path" /><span className="hero-art-orbit-dot" /><Coffee size={20} strokeWidth={1.5} /></span>
-          <span className="art-caption">{text.tagline}</span>
-        </div>
-        <div className="hero-copy">
-          <div className="eyebrow">{locale === 'fr' ? 'CAFÉ · RESTO' : locale === 'ar' ? 'مقهى · مطعم' : 'CAFÉ · RESTO'}</div>
-          <h1>LASTRADA<br />Café-Resto</h1>
-          <p>{text.intro}</p>
-        </div>
-        <div className="hero-hours"><Clock3 size={17}/><span>{text.open}</span></div>
-      </div>
-    </section>
-    <main className="menu-content">
-      <div className="search-row"><Search size={17} color="#6E7F78" /><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={text.search} aria-label={text.search} data-testid="input-menu-search" /><span style={{fontSize:10,color:'#6E7F78',letterSpacing:'.12em'}}>{text.menu.toUpperCase()}</span></div>
-      <div className="category-navigation">
-        <nav ref={categoryNavRef} className="category-sticky" aria-label={text.menu}>
-        {visibleCategories.map(category => <button key={category.id} className={activeCategory === category.id ? 'active' : ''} onClick={() => jumpTo(category.id)} data-testid={`chip-category-${category.id}`}>{translated(category.name, category.translations, locale)}</button>)}
-        </nav>
-        {categoryOverflow && <button type="button" className="category-next" onClick={scrollCategories} aria-label={locale === 'fr' ? 'D\u00e9filer vers les cat\u00e9gories suivantes' : 'Scroll to more categories'} title={locale === 'fr' ? 'Autres cat\u00e9gories' : 'More categories'} data-testid="button-scroll-categories">{rtl ? <ChevronLeft size={19}/> : <ChevronRight size={19}/>}</button>}
-      </div>
-      {loading ? <div aria-label={text.loading}>{[1,2,3].map(n => <div className="skeleton" key={n} style={{height:75,margin:'18px 0'}} />)}</div> :
-        matchingProducts.length === 0 ? <div className="empty-state" data-testid="empty-menu-search"><Search size={24} /><p>{text.noResults}</p></div> :
-        visibleCategories.map(category => {
-          const items = matchingProducts.filter(product => product.categoryId === category.id);
-          if (!items.length) return null;
-          return <section className="menu-category" id={`category-${category.id}`} key={category.id} data-testid={`section-category-${category.id}`}>
-            <div className="category-heading"><h2>{translated(category.name, category.translations, locale)}</h2><span>{String(items.length).padStart(2,'0')} {locale === 'fr' ? 'ARTICLES' : locale === 'ar' ? 'أصناف' : 'ITEMS'}</span></div>
-            {items.map(product => <button type="button" key={product.id} disabled={!product.available} className={`product-row ${!product.available ? 'unavailable' : ''}`} onClick={() => product.available && setSelected(product)} data-testid={`product-card-${product.id}`}>
-              <span className="product-thumb">{product.image ? <img src={product.image} alt="" loading="lazy" width="88" height="88" /> : <span className="placeholder-glyph">{category.id.slice(0,1).toLocaleUpperCase(locale)}</span>}</span>
-              <span className="product-info"><span className="product-category-badge">{translated(category.name, category.translations, locale)}</span><span className="product-name">{translated(product.name, product.translations, locale)}</span><span className="product-description">{translated(product.description || '', product.descriptions, locale)}</span>{!product.available && <span className="unavailable-tag">{text.unavailable}</span>}<span className="product-divider" /></span>
-              <span className="product-price">{formatPrice(product.price)}</span>
-            </button>)}
-          </section>;
-        })}
-      {!preview && <div className="notice" data-testid="status-cached-menu">{offline ? text.cached : (locale === 'fr' ? 'Votre carte reste disponible, même lorsque le réseau s’éclipse.' : locale === 'ar' ? 'القائمة متاحة حتى عند انقطاع الشبكة.' : 'Your menu stays close, even when the network wanders.')}</div>}
-    </main>
-    {!preview && <footer className="menu-footer">
-      <div className="footer-inner">
-        <section><div className="footer-brand">LASTRADA · CAFÉ-RESTO</div><p>{text.footer}</p><a href={`${import.meta.env.BASE_URL}admin`} data-testid="link-admin-entry">{text.adminEntry}</a></section>
-        <section><h3>{text.hoursTitle}</h3><p data-testid="text-hours-placeholder">{text.hours}</p></section>
-        <section><h3>{text.addressTitle}</h3><p><MapPin size={13} style={{verticalAlign:'middle',marginInlineEnd:6}} />{text.address}</p><a className="placeholder-link" href="https://www.google.com/maps/search/?api=1&query=V59W%2BP5M%2C%20Tunis%2C%20Tunisia" target="_blank" rel="noreferrer" data-testid="link-itinerary">{text.itinerary}</a></section>
-        <section><h3>{text.phoneTitle}</h3><p data-testid="text-phone-placeholder"><a href="tel:+21651524107">+216 51 524 107</a></p><h3 style={{fontSize:17,marginTop:15}}>{text.socialTitle}</h3><div className="social-links" data-testid="text-social-placeholder"><a href="https://www.facebook.com/Lastrada24/" target="_blank" rel="noreferrer" aria-label="Facebook"><FaFacebookF size={17} aria-hidden="true"/><span>Facebook</span></a><a href="https://www.instagram.com/lastrada_lounge/?hl=en" target="_blank" rel="noreferrer" aria-label="Instagram"><FaInstagram size={18} aria-hidden="true"/><span>Instagram</span></a></div></section>
-      </div>
-    </footer>}
-    {selected && <div className="detail-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setSelected(null); }} role="presentation">
-      <section className="detail-sheet" dir={rtl ? 'rtl' : 'ltr'} role="dialog" aria-modal="true" aria-label={translated(selected.name,selected.translations,locale)} data-testid="dialog-product-details">
-        <div className="sheet-handle" /><div className="sheet-image">{selected.image ? <img src={selected.image} alt="" /> : <span className="placeholder-glyph">{selected.categoryId === 'coffee' ? 'L' : 'S'}</span>}</div>
-        <div className="sheet-titleline"><div><div className="eyebrow">{text.detail}</div><h2>{translated(selected.name,selected.translations,locale)}</h2></div><button className="close-sheet" onClick={() => setSelected(null)} aria-label={text.close} data-testid="button-close-details"><X size={17} /></button></div>
-        <p className="sheet-desc">{translated(selected.description || '',selected.descriptions,locale)}</p>
-        <div className="product-price">{formatPrice(selected.price)}</div>
-      </section>
-    </div>}
-  </div>;
-}
-
 function RoutedApp() {
   const [location, setLocation] = useLocation();
   const [locale, setLocale] = useState<Locale>(() => {
@@ -191,6 +46,22 @@ function RoutedApp() {
   const [loading, setLoading] = useState(true);
   const isAdmin = location.startsWith('/admin');
   const a = adminText[locale];
+  useEffect(() => {
+    const root = document.documentElement;
+    const robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    root.lang = locale;
+    if (isAdmin) {
+      document.title = 'LASTRADA Menu Admin';
+      if (robots) robots.content = 'noindex, nofollow';
+    } else {
+      document.title = locale === 'en'
+        ? 'LASTRADA Café-Resto in Kairouan | Menu'
+        : locale === 'ar'
+          ? 'لاستـرادا كافيه ريستو في القيروان | القائمة'
+          : 'LASTRADA Café-Resto à Kairouan | Menu';
+      if (robots) robots.content = 'index, follow';
+    }
+  }, [isAdmin, locale]);
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2600); };
   const saveStore = async (next: StoreState) => {
     try {

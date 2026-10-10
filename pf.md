@@ -104,7 +104,7 @@ flowchart TB
 ### 4.1 Chosen stack
 | Layer | Choice | Reason |
 |---|---|---|
-| Frontend | Static PWA (React/Vue/Svelte or plain JS) on **Netlify** | Free global CDN, instant deploys from GitHub, HTTPS |
+| Frontend | Static PWA (React/Vue/Svelte or plain JS) on **vercel** | Free global CDN, instant deploys from GitHub, HTTPS |
 | Backend | Small REST API (Node.js or Python) on **Render** Web Service | Runs the admin logic and the public menu endpoint |
 | Database | **Neon** PostgreSQL | Serverless Postgres, branches, generous free tier |
 | Images | **External storage** (Cloudinary, or an S3-compatible bucket such as Cloudflare R2) | Render's free filesystem is wiped on every restart, redeploy and spin-down, so uploads cannot live on the server disk |
@@ -316,7 +316,7 @@ flowchart LR
 **Repository layout (one GitHub repo)**
 ```
 lastrada/
-  web/        frontend (client menu + /admin)   → Netlify (base dir: web)
+  web/        frontend (client menu + /admin)   → vercel (base dir: web)
   api/        backend                           → Render  (root dir: api)
   db/         schema.sql and migrations         → applied to Neon
   README.md
@@ -437,4 +437,4 @@ The full architecture for the complete system (orders, waiters, reservations, ow
 | 4 | Admin: category CRUD, reorder, put first |
 | 5 | Admin: product CRUD, price, availability |
 | 6 | Image upload with client-side resize, replace and delete with file cleanup |
-| 7 | GitHub → Netlify/Render deploy, Neon schema, image storage, cache version, backups (Neon point-in-time restore or export), print the single QR code |
+| 7 | GitHub → vercel/Render deploy, Neon schema, image storage, cache version, backups (Neon point-in-time restore or export), print the single QR code |

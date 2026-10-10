@@ -1,7 +1,7 @@
 export type Locale = 'fr' | 'ar' | 'en';
 export type LocalizedText = Partial<Record<Locale, string>>;
 export type Category = { id: string; name: string; position: number; available?: boolean; translations?: LocalizedText };
-export type Product = { id: string; categoryId: string; name: string; description?: string; price: number; image?: string; available: boolean; translations?: LocalizedText; descriptions?: LocalizedText };
+export type Product = { id: string; categoryId: string; name: string; description?: string; price: number; image?: string; available: boolean; translations?: LocalizedText; descriptions?: LocalizedText; position?: number };
 export const seededCategories: Category[] = [
   {
     "id": "cat-1782006562196",
