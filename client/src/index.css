@@ -1382,18 +1382,23 @@ body, .menu-shell, .admin-shell { background: var(--ls-bg); color: var(--ls-text
    ═══════════════════════════════════════════════════ */
 .brand-logo {
   display: block;
-  height: 44px;
+  height: 46px;
   width: auto;
   max-width: 100%;
   object-fit: contain;
+}
+@media (max-width: 700px) {
+  .brand-logo {
+    height: 40px;
+  }
 }
 .brand-small .brand-logo,
 .admin-header .brand-logo {
   height: 36px;
 }
 .login-card .brand-logo {
-  height: 60px;
-  margin: 0 auto 10px;
+  height: 64px;
+  margin: 0 auto 12px;
 }
 .brand-logo-dark {
   display: none !important;

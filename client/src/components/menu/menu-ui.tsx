@@ -6,18 +6,14 @@ export type Theme = 'light' | 'dark';
 export function Brand({ small = false }: { small?: boolean }) {
   return <div className={`brand-lockup ${small ? 'brand-small' : ''}`} aria-label="LASTRADA Café-Resto">
     <img
-      src={`${import.meta.env.BASE_URL}lastrada-logo-light-mode.svg`}
+      src={`${import.meta.env.BASE_URL}lastrada-logo-light.png`}
       alt="LASTRADA Café-Resto"
       className="brand-logo brand-logo-light"
-      width={small ? 38 : 46}
-      height={small ? 41 : 50}
     />
     <img
-      src={`${import.meta.env.BASE_URL}lastrada-logo-dark-mode.svg`}
+      src={`${import.meta.env.BASE_URL}lastrada-logo-dark.png`}
       alt="LASTRADA Café-Resto"
       className="brand-logo brand-logo-dark"
-      width={small ? 38 : 41}
-      height={small ? 41 : 50}
     />
   </div>;
 }
