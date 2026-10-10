@@ -328,17 +328,23 @@ function RoutedApp() {
   if (!signedIn) return (
     <main className="admin-login" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       <form className="login-card" onSubmit={loginSubmit}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div className="login-topbar">
           <Brand />
-          <div className="menu-topbar-actions"><ThemeToggle theme={theme} onToggle={toggleTheme} locale={locale} /><MenuLanguage locale={locale} onChange={chooseLocale} /></div>
+          <div className="login-topbar-actions"><ThemeToggle theme={theme} onToggle={toggleTheme} locale={locale} /><MenuLanguage locale={locale} onChange={chooseLocale} /></div>
         </div>
-        <div className="admin-kicker" style={{ marginTop: 28 }}>{a.loginEyebrow}</div>
-        <h1>{a.loginTitle}</h1>
-        <p className="login-description">{a.loginBody}</p>
-        <div className="field"><label htmlFor="admin-email">{a.email}</label><input id="admin-email" type="email" name="email" autoComplete="username" required data-testid="input-login-email" /></div>
-        <div className="field"><label htmlFor="admin-password">{a.password}</label><input id="admin-password" type="password" name="password" autoComplete="current-password" required data-testid="input-login-password" /></div>
-        <button className="btn btn-primary" type="submit" style={{ width: '100%', padding: 13 }} data-testid="button-admin-login">{a.enter} <ChevronRight size={15} /></button>
-        <button type="button" className="btn btn-quiet" style={{ width: '100%', marginTop: 9 }} onClick={() => setLocation('/')} data-testid="button-back-menu"><ArrowLeft size={14} /> {a.back}</button>
+        <div className="login-hero">
+          <div className="admin-kicker">{a.loginEyebrow}</div>
+          <h1>{a.loginTitle}</h1>
+          <p className="login-description">{a.loginBody}</p>
+        </div>
+        <div className="login-fields">
+          <div className="field"><label htmlFor="admin-email">{a.email}</label><input id="admin-email" type="email" name="email" autoComplete="username" required data-testid="input-login-email" /></div>
+          <div className="field"><label htmlFor="admin-password">{a.password}</label><input id="admin-password" type="password" name="password" autoComplete="current-password" required data-testid="input-login-password" /></div>
+        </div>
+        <div className="login-actions">
+          <button className="btn btn-primary login-submit" type="submit" data-testid="button-admin-login">{a.enter} <ChevronRight size={15} /></button>
+          <button type="button" className="btn btn-quiet login-back" onClick={() => setLocation('/')} data-testid="button-back-menu"><ArrowLeft size={14} /> {a.back}</button>
+        </div>
       </form>
     </main>
   );
@@ -360,8 +366,8 @@ function RoutedApp() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <ThemeToggle theme={theme} onToggle={toggleTheme} locale={locale} />
           <MenuLanguage locale={locale} onChange={chooseLocale} />
-          <button className="btn btn-quiet" onClick={() => setLocation('/')} data-testid="button-view-menu"><Eye size={15} /> <span className="optional-action">{a.view}</span></button>
-          <button className="icon-btn" onClick={signOut} aria-label={adminToasts[locale].signout} title={adminToasts[locale].signout} data-testid="button-admin-signout"><LogOut size={16} /></button>
+          <button className="btn btn-quiet admin-view-btn" onClick={() => setLocation('/')} data-testid="button-view-menu"><Eye size={15} /> <span>{a.view}</span></button>
+          <button className="btn admin-signout-btn" onClick={signOut} aria-label={adminToasts[locale].signout} title={adminToasts[locale].signout} data-testid="button-admin-signout"><LogOut size={15} /> <span className="signout-label">{adminToasts[locale].signout}</span></button>
         </div>
       </header>
 

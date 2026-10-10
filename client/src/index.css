@@ -976,8 +976,404 @@ body, .menu-shell, .admin-shell { background: var(--ls-bg); color: var(--ls-text
 }
 @media(prefers-reduced-motion:reduce){.availability-pill i::after{animation:none}}
 
+
 /* Let the image define the display area's aspect ratio so contain has no bars. */
 .detail-sheet .sheet-image{display:block;height:auto;min-height:0;overflow:hidden;background:var(--ls-soft)}
 .detail-sheet .sheet-image img{display:block;width:100%;height:auto;max-width:100%;max-height:none;padding:0;object-fit:contain;object-position:center;background:transparent}
 .detail-sheet .sheet-image-placeholder{display:grid;place-items:center;height:clamp(260px,42dvh,470px);min-height:260px}
 @media(max-width:700px){.detail-sheet .sheet-image-placeholder{height:clamp(260px,42dvh,470px);min-height:260px}}
+
+/* ═══════════════════════════════════════════════════
+   1. ADMIN DISCONNECT BUTTON — visible & distinct
+   ═══════════════════════════════════════════════════ */
+.admin-signout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, #C0392B 45%, var(--ls-border));
+  border-radius: 9px;
+  background: color-mix(in srgb, #C0392B 8%, var(--ls-surface));
+  color: #B03022;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+  white-space: nowrap;
+}
+.admin-signout-btn:hover {
+  background: #C0392B;
+  border-color: #C0392B;
+  color: #fff;
+  transform: translateY(-1px);
+}
+:root[data-theme='dark'] .admin-signout-btn {
+  background: color-mix(in srgb, #E74C3C 12%, var(--ls-surface));
+  border-color: color-mix(in srgb, #E74C3C 35%, var(--ls-border));
+  color: #F28B82;
+}
+:root[data-theme='dark'] .admin-signout-btn:hover {
+  background: #A93226;
+  border-color: #A93226;
+  color: #fff;
+}
+.admin-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+/* On very small screens keep only icons */
+@media (max-width: 520px) {
+  .admin-signout-btn .signout-label,
+  .admin-view-btn span { display: none; }
+  .admin-signout-btn { padding: 0 11px; gap: 0; }
+  .admin-view-btn    { padding: 0 11px; gap: 0; }
+}
+
+/* ═══════════════════════════════════════════════════
+   2. CATEGORY ROULETTE — clearer, bolder, more visual
+   ═══════════════════════════════════════════════════ */
+
+/* Stronger heading separator */
+.category-navigation {
+  padding: 0;
+  border-bottom: 2px solid var(--ls-border);
+  background: color-mix(in srgb, var(--ls-bg) 97%, transparent);
+}
+.category-strip-heading {
+  font-size: 9px;
+  letter-spacing: .18em;
+  font-weight: 800;
+  color: var(--ls-accent);
+  padding-inline: 4px;
+  gap: 7px;
+}
+.category-strip-heading i {
+  width: 18px;
+  height: 2px;
+  background: var(--ls-accent);
+  border-radius: 2px;
+}
+/* Bigger, more distinct category chips */
+.category-navigation .category-sticky {
+  padding: 11px 6px 13px;
+  gap: 8px;
+  mask-image: linear-gradient(90deg,#000 0%,#000 82%,transparent 100%);
+}
+.category-navigation .category-sticky button {
+  min-height: 46px;
+  padding: 0 20px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .015em;
+  border-radius: 999px;
+  border: 1.5px solid var(--ls-border);
+  background: var(--ls-surface);
+  color: var(--ls-text);
+  position: relative;
+  box-shadow: 0 2px 8px #101a1806;
+  transition: background .2s ease, border-color .2s ease, color .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+.category-navigation .category-sticky button:hover {
+  background: color-mix(in srgb, var(--ls-accent) 10%, var(--ls-surface));
+  border-color: var(--ls-accent);
+  color: var(--ls-text);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px #101a1810;
+}
+.category-navigation .category-sticky button.active {
+  background: var(--ls-green);
+  border-color: var(--ls-green);
+  color: var(--ls-green-contrast);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ls-green) 28%, transparent);
+  transform: translateY(-1px);
+}
+/* Active chip underline accent */
+.category-navigation .category-sticky button.active::after {
+  content: '';
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--ls-green);
+}
+/* Scroll arrow button */
+.category-next {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ls-border);
+  background: var(--ls-surface);
+  color: var(--ls-text);
+  box-shadow: 0 3px 12px #101a1812;
+  transition: background .2s ease, border-color .2s ease, color .2s ease, transform .2s ease;
+}
+.category-next:hover {
+  background: var(--ls-green);
+  border-color: var(--ls-green);
+  color: var(--ls-green-contrast);
+  transform: scale(1.08);
+}
+/* Mobile: full-width scrollable, slightly smaller but still very touchable */
+@media (max-width: 700px) {
+  .category-navigation {
+    border-bottom: 1px solid var(--ls-border);
+  }
+  .category-strip-heading {
+    font-size: 8px;
+    padding-inline: 2px;
+  }
+  .category-navigation .category-sticky {
+    padding: 9px 4px 11px;
+    gap: 7px;
+  }
+  .category-navigation .category-sticky button {
+    min-height: 42px;
+    padding: 0 16px;
+    font-size: 12px;
+  }
+  .category-navigation .category-sticky button.active::after {
+    bottom: -12px;
+    width: 18px;
+    height: 2px;
+  }
+  .category-next {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   3. LOGIN CARD — 100% mobile-first
+   ═══════════════════════════════════════════════════ */
+.admin-login {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: radial-gradient(ellipse at top right,
+    color-mix(in srgb, var(--ls-green) 16%, var(--ls-bg)),
+    var(--ls-bg) 60%);
+}
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px 24px 28px;
+  background: var(--ls-surface);
+  border: 1px solid var(--ls-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 72px #0b1c2820;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.login-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--ls-border);
+  margin-bottom: 24px;
+}
+.login-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.login-hero {
+  margin-bottom: 22px;
+}
+.login-hero h1 {
+  font: 500 clamp(26px, 7vw, 34px)/1.1 var(--font-serif);
+  color: var(--ls-text);
+  margin: 10px 0 10px;
+  letter-spacing: -.02em;
+}
+.login-description {
+  color: var(--ls-muted);
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0;
+}
+.login-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 20px;
+}
+.login-fields .field {
+  margin: 8px 0;
+}
+.login-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.login-submit {
+  width: 100%;
+  min-height: 52px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 12px;
+  justify-content: center;
+}
+.login-back {
+  width: 100%;
+  min-height: 46px;
+  justify-content: center;
+}
+/* Full-screen login on very small phones */
+@media (max-width: 440px) {
+  .admin-login {
+    padding: 0;
+    align-items: stretch;
+  }
+  .login-card {
+    max-width: 100%;
+    min-height: 100dvh;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    padding: 24px 20px max(24px, env(safe-area-inset-bottom));
+    justify-content: center;
+  }
+}
+@media (max-width: 360px) {
+  .login-card { padding-inline: 16px; }
+  .login-hero h1 { font-size: 26px; }
+}
+
+/* ═══════════════════════════════════════════════════
+   4. ADMIN MODIFICATION MODALS — full mobile experience
+   ═══════════════════════════════════════════════════ */
+
+/* On mobile: slide up as a bottom sheet */
+@media (max-width: 700px) {
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+    background: #06110dcc;
+    backdrop-filter: blur(6px);
+  }
+  .modal-card {
+    width: 100%;
+    max-width: 100%;
+    max-height: 96dvh;
+    padding: 0;
+    border-radius: 22px 22px 0 0;
+    border: none;
+    box-shadow: 0 -12px 50px #06110d22;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    animation: sheet-rise .28s cubic-bezier(.2,.8,.2,1);
+  }
+  /* Internal padding wrapper so sticky footer works */
+  .modal-card > * {
+    padding-inline: 18px;
+  }
+  /* Panel head (title + close) sticky at top */
+  .modal-card .admin-panel-head {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--ls-surface);
+    padding-top: 14px;
+    padding-bottom: 14px;
+    margin: 0;
+    border-bottom: 1px solid var(--ls-border);
+  }
+  /* Image picker larger on mobile */
+  .modal-card .image-picker {
+    min-height: 170px;
+    margin-top: 16px;
+  }
+  /* Form grid becomes single column */
+  .modal-card .form-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  /* Inputs feel bigger and more native */
+  .modal-card .field input,
+  .modal-card .field textarea,
+  .modal-card .field select {
+    min-height: 52px;
+    font-size: 16px;
+    border-radius: 11px;
+  }
+  .modal-card .field textarea {
+    min-height: 100px;
+  }
+  /* Toggle line breathing room */
+  .modal-card .toggle-line {
+    padding: 16px 0;
+    font-size: 15px;
+  }
+  /* Sticky footer actions */
+  .modal-card .modal-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: var(--ls-surface);
+    border-top: 1px solid var(--ls-border);
+    padding: 14px 18px max(18px, env(safe-area-inset-bottom));
+    margin-inline: -18px;
+    gap: 10px;
+    flex-wrap: nowrap;
+  }
+  .modal-card .modal-actions .btn {
+    flex: 1;
+    min-height: 50px;
+    font-size: 15px;
+    border-radius: 12px;
+    justify-content: center;
+  }
+  /* Padding for scrollable content so it doesn't hide behind sticky footer */
+  .modal-card {
+    padding-bottom: 0;
+  }
+  /* Notice and image remove helpers */
+  .modal-card .notice {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .modal-card .image-remove {
+    min-height: 42px;
+  }
+}
+@keyframes sheet-rise {
+  from { transform: translateY(40px); opacity: .6; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+/* Fix inner padding for modal-card children on mobile */
+@media (max-width: 700px) {
+  /* Give all direct children uniform horizontal padding */
+  .modal-card > .admin-panel-head,
+  .modal-card > .image-picker,
+  .modal-card > .image-remove,
+  .modal-card > .notice,
+  .modal-card > .form-grid,
+  .modal-card > .field,
+  .modal-card > .toggle-line,
+  .modal-card > .admin-kicker,
+  .modal-card > h2,
+  .modal-card > p {
+    padding-inline: 18px;
+  }
+  /* admin-kicker (confirm modal) */
+  .modal-card > .admin-kicker { padding-top: 20px; }
+  /* Paragraph in confirm modal */
+  .modal-card > p[style] { padding-inline: 18px; }
+}
+
