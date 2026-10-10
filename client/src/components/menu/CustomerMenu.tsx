@@ -52,10 +52,6 @@ function CategoryNavigation({ categories, locale, activeCategory, onSelect, rtl 
   });
 
   return <div className="category-navigation">
-    <div className="category-strip-heading" aria-hidden="true">
-      <span>{locale === 'fr' ? 'À découvrir' : locale === 'ar' ? 'اكتشفوا' : 'Explore'}</span>
-      <i />
-    </div>
     <nav ref={navRef} className="category-sticky" aria-label={copyText[locale].menu}>
       {categories.map(category => <button key={category.id} type="button" className={activeCategory === category.id ? 'active' : ''} aria-current={activeCategory === category.id ? 'location' : undefined} onClick={() => onSelect(category.id)} data-testid={`chip-category-${category.id}`}>
         {translated(category.name, category.translations, locale)}

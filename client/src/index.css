@@ -1377,3 +1377,51 @@ body, .menu-shell, .admin-shell { background: var(--ls-bg); color: var(--ls-text
   .modal-card > p[style] { padding-inline: 18px; }
 }
 
+/* ═══════════════════════════════════════════════════
+   5. BRAND SVG LOGO (Light & Dark mode)
+   ═══════════════════════════════════════════════════ */
+.brand-logo {
+  display: block;
+  height: 44px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+.brand-small .brand-logo,
+.admin-header .brand-logo {
+  height: 36px;
+}
+.login-card .brand-logo {
+  height: 60px;
+  margin: 0 auto 10px;
+}
+.brand-logo-dark {
+  display: none !important;
+}
+.brand-logo-light {
+  display: block !important;
+}
+:root[data-theme='dark'] .brand-logo-dark {
+  display: block !important;
+}
+:root[data-theme='dark'] .brand-logo-light {
+  display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════
+   6. SEARCH BAR — Prevent duplicate cross / plus sign
+   ═══════════════════════════════════════════════════ */
+.search-row input[type="search"]::-webkit-search-decoration,
+.search-row input[type="search"]::-webkit-search-cancel-button,
+.search-row input[type="search"]::-webkit-search-results-button,
+.search-row input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: none !important;
+}
+.search-row input::-ms-clear,
+.search-row input::-ms-reveal {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}

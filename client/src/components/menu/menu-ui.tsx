@@ -4,9 +4,21 @@ import type { Locale } from '../../menu-data';
 export type Theme = 'light' | 'dark';
 
 export function Brand({ small = false }: { small?: boolean }) {
-  return <div className="brand-lockup" aria-label="LASTRADA Café-Resto">
-    <div className="brand-mark" aria-hidden="true">L</div>
-    <div><div className="brand-name">LASTRADA</div>{!small && <div className="brand-sub">CAFÉ · RESTO</div>}</div>
+  return <div className={`brand-lockup ${small ? 'brand-small' : ''}`} aria-label="LASTRADA Café-Resto">
+    <img
+      src={`${import.meta.env.BASE_URL}lastrada-logo-light-mode.svg`}
+      alt="LASTRADA Café-Resto"
+      className="brand-logo brand-logo-light"
+      width={small ? 38 : 46}
+      height={small ? 41 : 50}
+    />
+    <img
+      src={`${import.meta.env.BASE_URL}lastrada-logo-dark-mode.svg`}
+      alt="LASTRADA Café-Resto"
+      className="brand-logo brand-logo-dark"
+      width={small ? 38 : 41}
+      height={small ? 41 : 50}
+    />
   </div>;
 }
 
