@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startPinger } from "./lib/pinger";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -26,5 +27,7 @@ app.listen(port, "0.0.0.0", (err) => {
   }
 
   logger.info({ port }, "Server listening on 0.0.0.0");
+  startPinger();
 });
+
 
