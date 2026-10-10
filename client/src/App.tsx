@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Router as WouterRouter, useLocation } from 'wouter';
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronRight, Coffee, Eye, GripVertical, Pencil, Plus, Trash2, Utensils, X, ImagePlus, Smartphone, LogOut, Tag, LayoutList } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronRight, Coffee, Eye, Pencil, Plus, Trash2, Utensils, X, ImagePlus, Smartphone, LogOut, Tag, LayoutList, Search } from 'lucide-react';
 import { adminText, Category, Locale, Product, translated } from './menu-data';
 import { CustomerMenu } from './components/menu/CustomerMenu';
 import { Brand, formatPrice, MenuLanguage, ThemeToggle, type Theme } from './components/menu/menu-ui';
@@ -8,6 +8,15 @@ import { Brand, formatPrice, MenuLanguage, ThemeToggle, type Theme } from './com
 type AdminTab = 'categories' | 'products' | 'preview';
 type ConfirmState = { title: string; message: string; action: () => void } | null;
 type StoreState = { categories: Category[]; products: Product[] };
+const productSearchText: Record<Locale, { placeholder: string; empty: string }> = {
+  fr: { placeholder: 'Rechercher un produit…', empty: 'Aucun produit ne correspond à cette recherche.' },
+  en: { placeholder: 'Search products…', empty: 'No products match this search.' },
+  ar: { placeholder: 'ابحث عن منتج…', empty: 'لا توجد منتجات تطابق هذا البحث.' },
+};
+
+function normalizeAdminSearch(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().trim();
+}
 
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
@@ -43,6 +52,7 @@ function RoutedApp() {
   const [categoryDraft, setCategoryDraft] = useState<Category | null>(null);
   const [productDraft, setProductDraft] = useState<Product | null>(null);
   const [toast, setToast] = useState('');
+  const [productQuery, setProductQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const isAdmin = location.startsWith('/admin');
   const a = adminText[locale];
@@ -112,6 +122,12 @@ function RoutedApp() {
     if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register(`${import.meta.env.BASE_URL}service-worker.js`).catch(() => undefined);
   }, []);
   const sortedCategories = useMemo(() => [...store.categories].sort((a,b) => a.position-b.position), [store.categories]);
+  const normalizedProductQuery = normalizeAdminSearch(productQuery);
+  const filteredProducts = useMemo(() => store.products.filter(product => {
+    if (!normalizedProductQuery) return true;
+    const searchable = [product.name, product.description || '', ...Object.values(product.translations || {}), ...Object.values(product.descriptions || {})].join(' ');
+    return normalizeAdminSearch(searchable).includes(normalizedProductQuery);
+  }), [store.products, normalizedProductQuery]);
   const changeTab = (next: AdminTab) => setTab(next);
   const loginSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); const values = new FormData(event.currentTarget);
@@ -240,15 +256,18 @@ function RoutedApp() {
       {tab === 'categories' && <section className="admin-panel">
         <div className="admin-panel-head"><div><h2>{a.sections}</h2><p>{a.order}</p></div><button className="btn btn-primary" onClick={() => setCategoryDraft({id:'',name:'',position:store.categories.length})} data-testid="button-add-category"><Plus size={15} /> {a.add}</button></div>
         {!sortedCategories.length ? <div className="empty-state"><Tag size={25}/><p>{a.emptyCategory}</p></div> : sortedCategories.map((category,index) => <div className="admin-list-row" key={category.id} data-testid={`row-category-${category.id}`}>
-          <GripVertical size={15} className="row-grip" /><div className="row-grow"><div className="row-title">{translated(category.name,category.translations,locale)}</div><div className="row-sub">{store.products.filter(p => p.categoryId === category.id).length} {a.items} · {a.position} {index + 1}</div></div>
+          <span className="row-position" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span><div className="row-grow"><div className="row-title">{translated(category.name,category.translations,locale)}</div><div className="row-sub">{store.products.filter(p => p.categoryId === category.id).length} {a.items} · {a.position} {index + 1}</div></div>
           <div className="row-actions"><button className={`switch ${category.available !== false ? 'on' : ''}`} onClick={() => toggleCategory(category.id)} role="switch" aria-checked={category.available !== false} aria-label={`${a.availableToggle}: ${category.name}`} data-testid={`toggle-category-availability-${category.id}`} /><button className="icon-btn" title={locale === 'fr' ? 'Monter' : locale === 'ar' ? 'تحريك للأعلى' : 'Move up'} aria-label={locale === 'fr' ? 'Monter' : locale === 'ar' ? 'تحريك للأعلى' : 'Move up'} disabled={!index} onClick={() => moveCategory(category.id,-1)} data-testid={`button-category-up-${category.id}`}><ArrowUp size={15}/></button><button className="icon-btn" title={locale === 'fr' ? 'Descendre' : locale === 'ar' ? 'تحريك للأسفل' : 'Move down'} aria-label={locale === 'fr' ? 'Descendre' : locale === 'ar' ? 'تحريك للأسفل' : 'Move down'} disabled={index === sortedCategories.length-1} onClick={() => moveCategory(category.id,1)} data-testid={`button-category-down-${category.id}`}><ArrowDown size={15}/></button><button className="btn btn-first" disabled={!index} onClick={() => moveCategoryFirst(category.id)} data-testid={`button-category-first-${category.id}`}><ArrowUp size={13}/>{a.moveFirst}</button><button className="icon-btn" title={a.editCategory} aria-label={a.editCategory} onClick={() => setCategoryDraft(category)} data-testid={`button-edit-category-${category.id}`}><Pencil size={15}/></button><button className="icon-btn" title={a.delete} aria-label={a.delete} onClick={() => removeCategory(category.id)} data-testid={`button-delete-category-${category.id}`}><Trash2 size={15}/></button></div>
         </div>)}
       </section>}
       {tab === 'products' && <section className="admin-panel">
         <div className="admin-panel-head"><div><h2>{a.products}</h2><p>{a.productNote}</p></div><button className="btn btn-primary" onClick={() => setProductDraft({id:'',categoryId:sortedCategories[0]?.id || '',name:'',description:'',price:0,available:true})} disabled={!sortedCategories.length} data-testid="button-add-product"><Plus size={15}/> {a.add}</button></div>
-        {sortedCategories.length === 0 ? <div className="empty-state"><Tag size={24}/><p>{a.createCategoryFirst}</p><button className="btn" onClick={() => setTab('categories')} data-testid="button-go-categories">{a.createCategory}</button></div> :
-          sortedCategories.map(category => {
-            const items = store.products.filter(p => p.categoryId === category.id);
+        {sortedCategories.length > 0 && <label className="admin-product-search"><Search size={17} aria-hidden="true"/><input type="search" value={productQuery} onChange={event => setProductQuery(event.target.value)} placeholder={productSearchText[locale].placeholder} aria-label={productSearchText[locale].placeholder} data-testid="input-admin-product-search"/>{productQuery && <button type="button" onClick={() => setProductQuery('')} aria-label={locale === 'fr' ? 'Effacer la recherche' : locale === 'ar' ? 'مسح البحث' : 'Clear search'}>×</button>}</label>}
+        {sortedCategories.length === 0 ? <div className="empty-state"><Tag size={24}/><p>{a.createCategoryFirst}</p><button className="btn" onClick={() => setTab('categories')} data-testid="button-go-categories">{a.createCategory}</button></div> : <>
+          {productQuery && filteredProducts.length === 0 && <p className="admin-search-empty">{productSearchText[locale].empty}</p>}
+          {sortedCategories.map(category => {
+            const items = filteredProducts.filter(product => product.categoryId === category.id);
+            if (productQuery && !items.length) return null;
             return <div key={category.id} style={{marginTop:20}}><div className="eyebrow">{translated(category.name,category.translations,locale)}</div>
               {!items.length && <p className="row-sub">{a.noProducts}</p>}
               {items.map((product,index) => <div className="admin-list-row" key={product.id} data-testid={`row-product-${product.id}`}>
@@ -259,6 +278,7 @@ function RoutedApp() {
               </div>)}
             </div>;
           })}
+        </>}
       </section>}
       {tab === 'preview' && <section className="admin-panel"><div className="admin-panel-head"><div><h2>{a.previewTitle}</h2><p>{a.previewBody}</p></div><MenuLanguage locale={locale} onChange={chooseLocale}/></div>
         <div className="admin-preview-frame"><CustomerMenu categories={store.categories} products={store.products} locale={locale} onLocale={chooseLocale} theme={theme} onThemeToggle={toggleTheme} preview /></div></section>}
