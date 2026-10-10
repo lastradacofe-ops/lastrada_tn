@@ -1,6 +1,9 @@
 {
   "buildCommand": "pnpm --filter ./client run build",
   "outputDirectory": "client/dist/public",
+  "protection": {
+    "deploymentType": "none"
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",

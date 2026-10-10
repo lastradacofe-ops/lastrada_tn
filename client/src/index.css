@@ -99,6 +99,29 @@ button {cursor:pointer}
 .login-card{width:min(100%,410px);padding:30px;background:#fffdf8;border:1px solid #e4e0d7;border-radius:18px}.login-card h1{font:500 32px var(--font-serif);margin:22px 0 7px}
 .toast-message{position:fixed;z-index:60;bottom:22px;left:50%;transform:translateX(-50%);background:#263b32;color:#f6f2e9;border-radius:9px;padding:12px 17px;font-size:12px;box-shadow:0 8px 25px #1e302530}
 .mobile-admin-toolbar{display:none}
+
+/* ── Drag-and-drop rows ── */
+.dnd-row{cursor:default;transition:background .14s,transform .14s,box-shadow .14s}
+.dnd-grip{color:#b3b0a7;display:flex;align-items:center;cursor:grab;flex-shrink:0;padding:0 2px}
+.dnd-grip:active{cursor:grabbing}
+.dnd-row.dnd-dragging{opacity:.45;transform:scale(.98)}
+.dnd-row.dnd-over{background:#eaf0e8;border-radius:9px;box-shadow:inset 0 0 0 2px var(--ls-primary,#1f3d36)}
+
+/* ── Checkboxes ── */
+.admin-row-checkbox{width:16px;height:16px;flex-shrink:0;accent-color:var(--ls-primary,#1f3d36);cursor:pointer}
+.admin-select-bar{display:flex;align-items:center;gap:10px;padding:7px 0 10px;border-bottom:1px solid #efede7;margin-bottom:4px}
+.admin-checkbox-label{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ls-muted,#52625c);cursor:pointer;user-select:none}
+.admin-checkbox-label input{width:15px;height:15px;accent-color:var(--ls-primary,#1f3d36)}
+
+/* ── Category navigation pill bar (products tab) ── */
+.admin-cat-nav{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:4px 0 12px;margin-bottom:4px}
+.admin-cat-nav::-webkit-scrollbar{display:none}
+.admin-cat-nav button{white-space:nowrap;border:1px solid #ddd7ca;background:#f5f1ea;color:var(--ls-muted,#52625c);padding:8px 13px;border-radius:99px;font-size:11px;font-weight:600;letter-spacing:.01em;display:flex;align-items:center;gap:6px;transition:background .16s,border-color .16s,color .16s;flex-shrink:0}
+.admin-cat-nav button:hover{background:#eae6de;border-color:#c8a46a88}
+.admin-cat-nav button.active{background:var(--ls-primary,#1f3d36);border-color:var(--ls-primary,#1f3d36);color:#f6f2e9}
+.admin-cat-nav button.active .cat-nav-count{background:#ffffff30;color:#f6f2e9}
+.cat-nav-count{background:#e4ded4;color:var(--ls-muted,#52625c);border-radius:99px;padding:2px 7px;font-size:10px;font-weight:700;min-width:18px;text-align:center;line-height:1.5}
+
 @keyframes fade-in{from{opacity:0}to{opacity:1}}@keyframes rise{from{transform:translateY(16px);opacity:.7}to{transform:translateY(0);opacity:1}}@keyframes skeleton{to{background-position:-200% 0}}
 @media(max-width:700px){
  .menu-topbar{padding:16px 18px}.hero{display:flex;flex-direction:column-reverse;gap:8px;padding:4px 18px 24px;align-items:stretch}
