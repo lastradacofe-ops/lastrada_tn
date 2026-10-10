@@ -24,7 +24,10 @@ self.addEventListener('fetch', event => {
   // deliberately does not make this request; when used, it is network-first.
   if (url.pathname === '/api/menu') {
     event.respondWith(fetch(request).then(response => {
-      if (response.ok) caches.open(MENU_API_CACHE).then(cache => cache.put(request, response.clone()));
+      if (response.ok) {
+        const copy = response.clone();
+        caches.open(MENU_API_CACHE).then(cache => cache.put(request, copy)).catch(() => undefined);
+      }
       return response;
     }).catch(() => caches.match(request).then(cached => cached || new Response(
       JSON.stringify({ error: 'Menu unavailable offline' }),
@@ -36,7 +39,8 @@ self.addEventListener('fetch', event => {
   // App shell: network first while connected, cached shell on offline visits.
   event.respondWith(fetch(request).then(response => {
     if (response.ok) {
-      caches.open(SHELL_CACHE).then(cache => cache.put(request, response.clone()));
+      const copy = response.clone();
+      caches.open(SHELL_CACHE).then(cache => cache.put(request, copy)).catch(() => undefined);
     }
     return response;
   }).catch(() => caches.match(request).then(cached => cached || (
