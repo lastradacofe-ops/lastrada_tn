@@ -84,17 +84,22 @@ function ProductCard({ product, category, locale, unavailableLabel, onSelect }: 
   </button>;
 }
 
-function ProductDetails({ product, locale, rtl, closeRef, dialogRef, closeLabel, detailLabel, onClose }: {
-  product: Product; locale: Locale; rtl: boolean; closeRef: RefObject<HTMLButtonElement | null>; dialogRef: RefObject<HTMLElement | null>; closeLabel: string; detailLabel: string; onClose: () => void;
+function ProductDetails({ product, categoryLabel, locale, rtl, closeRef, dialogRef, closeLabel, onClose }: {
+  product: Product; categoryLabel: string; locale: Locale; rtl: boolean; closeRef: RefObject<HTMLButtonElement | null>; dialogRef: RefObject<HTMLElement | null>; closeLabel: string; onClose: () => void;
 }) {
   const name = translated(product.name, product.translations, locale);
+  const availableLabel = locale === 'fr' ? 'Disponible' : locale === 'ar' ? 'متوفر' : 'Available';
   return <div className="detail-backdrop" onClick={event => { if (event.target === event.currentTarget) onClose(); }} role="presentation">
     <section ref={dialogRef} className="detail-sheet" dir={rtl ? 'rtl' : 'ltr'} role="dialog" aria-modal="true" aria-labelledby="product-detail-title" tabIndex={-1} data-testid="dialog-product-details">
-      <div className="sheet-handle" aria-hidden="true" />
-      <div className="sheet-image">{product.image ? <img src={product.image} alt="" /> : <span className="placeholder-glyph" aria-hidden="true">{product.categoryId === 'coffee' ? 'L' : 'S'}</span>}</div>
-      <div className="sheet-titleline"><div><div className="eyebrow">{detailLabel}</div><h2 id="product-detail-title">{name}</h2></div><button ref={closeRef} type="button" className="close-sheet" onClick={onClose} aria-label={closeLabel} data-testid="button-close-details"><X size={17} aria-hidden="true" /></button></div>
-      {product.description && <p className="sheet-desc">{translated(product.description, product.descriptions, locale)}</p>}
-      <div className="product-price">{formatPrice(product.price)}</div>
+      <div className={`sheet-image${product.image ? '' : ' sheet-image-placeholder'}`}>{product.image ? <img src={product.image} alt="" /> : <span className="placeholder-glyph" aria-hidden="true">{product.categoryId === 'coffee' ? 'L' : 'S'}</span>}<span className="sheet-image-category">{categoryLabel}</span></div>
+      <div className="sheet-detail-body">
+        <div className="sheet-detail-topline"><div className="eyebrow">{categoryLabel}</div><button ref={closeRef} type="button" className="close-sheet" onClick={onClose} aria-label={closeLabel} data-testid="button-close-details"><X size={23} aria-hidden="true" /></button></div>
+        <h2 id="product-detail-title">{name}</h2>
+        {product.description && <p className="sheet-desc">{translated(product.description, product.descriptions, locale)}</p>}
+        <div className="sheet-product-summary"><div className="sheet-price">{formatPrice(product.price)}</div><span className="availability-pill"><i aria-hidden="true" />{availableLabel}</span></div>
+        <div className="sheet-separator" aria-hidden="true" />
+        <button type="button" className="sheet-close-action" onClick={onClose} data-testid="button-close-details-action">{closeLabel}</button>
+      </div>
     </section>
   </div>;
 }
@@ -244,6 +249,6 @@ export function CustomerMenu({ categories, products, locale, onLocale, loading =
         <section><h3>{text.phoneTitle}</h3><p data-testid="text-phone-placeholder"><a href="tel:+21651524107">+216 51 524 107</a></p><h3 className="social-title">{text.socialTitle}</h3><div className="social-links" data-testid="text-social-placeholder"><a href="https://www.facebook.com/Lastrada24/" target="_blank" rel="noreferrer" aria-label="Facebook"><FaFacebookF size={17} aria-hidden="true" /><span>Facebook</span></a><a href="https://www.instagram.com/lastrada_lounge/?hl=en" target="_blank" rel="noreferrer" aria-label="Instagram"><FaInstagram size={18} aria-hidden="true" /><span>Instagram</span></a></div></section>
       </div>
     </footer>}
-    {selected && <ProductDetails product={selected} locale={locale} rtl={rtl} closeRef={closeRef} dialogRef={dialogRef} closeLabel={text.close} detailLabel={text.detail} onClose={() => setSelected(null)} />}
+    {selected && <ProductDetails product={selected} categoryLabel={translated(visibleCategories.find(category => category.id === selected.categoryId)?.name || '', visibleCategories.find(category => category.id === selected.categoryId)?.translations, locale)} locale={locale} rtl={rtl} closeRef={closeRef} dialogRef={dialogRef} closeLabel={text.close} onClose={() => setSelected(null)} />}
   </div>;
 }
