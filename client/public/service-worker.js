@@ -1,6 +1,8 @@
-const SHELL_CACHE = 'lastrada-app-shell-v2';
+const SHELL_CACHE = 'lastrada-app-shell-v3';
 const MENU_API_CACHE = 'lastrada-api-menu-v1';
-const SHELL_ASSETS = ['./', './manifest.webmanifest', './pwa-icon-192.svg', './pwa-icon-512.svg', './lastrada-hero.jpg'];
+// lastrada-hero.jpg was precached but is not referenced anywhere in the app —
+// dropping it avoids a pointless download on every first visit.
+const SHELL_ASSETS = ['./', './manifest.webmanifest', './pwa-icon-192.svg', './pwa-icon-512.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(SHELL_CACHE).then(cache => cache.addAll(SHELL_ASSETS)).catch(() => undefined));

@@ -9,11 +9,17 @@ export function Brand({ small = false }: { small?: boolean }) {
       src={`${import.meta.env.BASE_URL}lastrada-logo-light.png`}
       alt="LASTRADA Café-Resto"
       className="brand-logo brand-logo-light"
+      width={732}
+      height={787}
+      decoding="async"
     />
     <img
       src={`${import.meta.env.BASE_URL}lastrada-logo-dark.png`}
       alt="LASTRADA Café-Resto"
       className="brand-logo brand-logo-dark"
+      width={732}
+      height={787}
+      decoding="async"
     />
   </div>;
 }
@@ -33,6 +39,17 @@ export function ThemeToggle({ theme, onToggle, locale }: { theme: Theme; onToggl
   return <button className="theme-toggle" type="button" onClick={onToggle} aria-label={label} title={label}><Icon size={18} strokeWidth={1.7} aria-hidden="true" /></button>;
 }
 
+/**
+ * Prices are shown to three decimals, which is the house style ("3,000 DT" = 3 DT).
+ * At 1000 and above that same format reads as millions ("7000,000"), so larger
+ * amounts fall back to grouped notation where the comma cannot be mistaken for
+ * a decimal separator.
+ */
 export function formatPrice(price: number) {
-  return `${Number(price).toFixed(3).replace('.', ',')} DT`;
+  const value = Number(price);
+  if (!Number.isFinite(value)) return '—';
+  if (Math.abs(value) >= 1000) {
+    return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 }).format(value)} DT`;
+  }
+  return `${value.toFixed(3).replace('.', ',')} DT`;
 }

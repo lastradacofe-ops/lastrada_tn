@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { Clock3, Coffee, ChevronLeft, ChevronRight, MapPin, Search, X } from 'lucide-react';
+import { Clock3, Coffee, ChevronLeft, ChevronRight, MapPin, Search, X, CalendarDays, ArrowUp } from 'lucide-react';
 import { FaFacebookF, FaInstagram } from 'react-icons/fa';
-import { copyText, type Category, type Locale, type Product, translated } from '../../menu-data';
+import { copyText, isOfferLive, type Category, type Locale, type Offer, type Product, translated } from '../../menu-data';
 import { formatPrice, MenuLanguage, ThemeToggle, type Theme, Brand } from './menu-ui';
+import { heroPicture, menuImage, SHEET_SIZES, THUMB_SIZES } from './menu-images';
 
 type CustomerMenuProps = {
   categories: Category[];
   products: Product[];
+  offers?: Offer[];
   locale: Locale;
   onLocale: (locale: Locale) => void;
   loading?: boolean;
@@ -46,13 +48,53 @@ function CategoryNavigation({ categories, locale, activeCategory, onSelect, rtl 
     return () => observer.disconnect();
   }, [categories]);
 
+  // Follow the section the reader is actually looking at. Scrolling the page
+  // moves the strip so the current category stays visible; scrolling the strip
+  // by hand suspends this, otherwise the two would fight each other.
+  const userScrollingRef = useRef(false);
+  const autoScrollingRef = useRef(false);
+  const suspendTimer = useRef<number | null>(null);
+  const autoTimer = useRef<number | null>(null);
+  const onStripScroll = () => {
+    // Ignore the scroll events our own sync produces, otherwise it marks itself
+    // as "the user is scrolling" and then refuses to sync ever again.
+    if (autoScrollingRef.current) return;
+    userScrollingRef.current = true;
+    if (suspendTimer.current !== null) window.clearTimeout(suspendTimer.current);
+    suspendTimer.current = window.setTimeout(() => { userScrollingRef.current = false; }, 900);
+  };
+  useEffect(() => () => {
+    if (suspendTimer.current !== null) window.clearTimeout(suspendTimer.current);
+    if (autoTimer.current !== null) window.clearTimeout(autoTimer.current);
+  }, []);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav || !activeCategory || userScrollingRef.current) return;
+    const chip = nav.querySelector<HTMLElement>(`[data-testid="chip-category-${CSS.escape(activeCategory)}"]`);
+    if (!chip) return;
+    // Only move when the chip has drifted out of view — never on every tick.
+    const navRect = nav.getBoundingClientRect();
+    const chipRect = chip.getBoundingClientRect();
+    const fullyVisible = chipRect.left >= navRect.left && chipRect.right <= navRect.right;
+    if (fullyVisible) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    autoScrollingRef.current = true;
+    if (autoTimer.current !== null) window.clearTimeout(autoTimer.current);
+    autoTimer.current = window.setTimeout(() => { autoScrollingRef.current = false; }, 700);
+    nav.scrollTo({
+      left: nav.scrollLeft + (chipRect.left - navRect.left) - (navRect.width - chipRect.width) / 2,
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
+  }, [activeCategory, rtl]);
+
   const scrollCategories = () => navRef.current?.scrollBy({
     left: (rtl ? -1 : 1) * (navRef.current?.clientWidth || 0) * 0.72,
     behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
   });
 
   return <div className="category-navigation">
-    <nav ref={navRef} className="category-sticky" aria-label={copyText[locale].menu}>
+    <nav ref={navRef} className="category-sticky" aria-label={copyText[locale].menu} onScroll={onStripScroll}>
       {categories.map(category => <button key={category.id} type="button" className={activeCategory === category.id ? 'active' : ''} aria-current={activeCategory === category.id ? 'location' : undefined} onClick={() => onSelect(category.id)} data-testid={`chip-category-${category.id}`}>
         {translated(category.name, category.translations, locale)}
       </button>)}
@@ -67,8 +109,9 @@ function ProductCard({ product, category, locale, unavailableLabel, onSelect }: 
   product: Product; category: Category; locale: Locale; unavailableLabel: string; onSelect: (product: Product, target: HTMLButtonElement) => void;
 }) {
   const name = translated(product.name, product.translations, locale);
+  const thumb = menuImage(product.image, THUMB_SIZES);
   return <button type="button" disabled={!product.available} className={`product-row ${!product.available ? 'unavailable' : ''}`} onClick={event => onSelect(product, event.currentTarget)} aria-label={`${name}, ${formatPrice(product.price)}${product.available ? '' : `, ${unavailableLabel}`}`} data-testid={`product-card-${product.id}`}>
-    <span className="product-thumb" aria-hidden="true">{product.image ? <img src={product.image} alt="" loading="lazy" width="88" height="88" /> : <span className="placeholder-glyph">{category.id.slice(0, 1).toLocaleUpperCase(locale)}</span>}</span>
+    <span className="product-thumb" aria-hidden="true">{thumb ? <img {...thumb} alt="" loading="lazy" decoding="async" width="88" height="88" /> : <span className="placeholder-glyph">{category.id.slice(0, 1).toLocaleUpperCase(locale)}</span>}</span>
     <span className="product-info">
       <span className="product-category-badge">{translated(category.name, category.translations, locale)}</span>
       <span className="product-name">{name}</span>
@@ -85,9 +128,10 @@ function ProductDetails({ product, categoryLabel, locale, rtl, closeRef, dialogR
 }) {
   const name = translated(product.name, product.translations, locale);
   const availableLabel = locale === 'fr' ? 'Disponible' : locale === 'ar' ? 'متوفر' : 'Available';
+  const sheet = menuImage(product.image, SHEET_SIZES);
   return <div className="detail-backdrop" onClick={event => { if (event.target === event.currentTarget) onClose(); }} role="presentation">
     <section ref={dialogRef} className="detail-sheet" dir={rtl ? 'rtl' : 'ltr'} role="dialog" aria-modal="true" aria-labelledby="product-detail-title" tabIndex={-1} data-testid="dialog-product-details">
-      <div className={`sheet-image${product.image ? '' : ' sheet-image-placeholder'}`}>{product.image ? <img src={product.image} alt="" /> : <span className="placeholder-glyph" aria-hidden="true">{product.categoryId === 'coffee' ? 'L' : 'S'}</span>}<span className="sheet-image-category">{categoryLabel}</span></div>
+      <div className={`sheet-image${product.image ? '' : ' sheet-image-placeholder'}`}>{sheet ? <img {...sheet} alt="" decoding="async" /> : <span className="placeholder-glyph" aria-hidden="true">{product.categoryId === 'coffee' ? 'L' : 'S'}</span>}<span className="sheet-image-category">{categoryLabel}</span></div>
       <div className="sheet-detail-body">
         <div className="sheet-detail-topline"><div className="eyebrow">{categoryLabel}</div><button ref={closeRef} type="button" className="close-sheet" onClick={onClose} aria-label={closeLabel} data-testid="button-close-details"><X size={23} aria-hidden="true" /></button></div>
         <h2 id="product-detail-title">{name}</h2>
@@ -100,12 +144,84 @@ function ProductDetails({ product, categoryLabel, locale, rtl, closeRef, dialogR
   </div>;
 }
 
-export function CustomerMenu({ categories, products, locale, onLocale, loading = false, preview = false, theme, onThemeToggle }: CustomerMenuProps) {
+/** Formats an inclusive `YYYY-MM-DD` bound in the active locale. */
+function formatOfferDate(value: string, locale: Locale) {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return value;
+  try {
+    return new Date(year, month - 1, day).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+  } catch {
+    return value;
+  }
+}
+
+function OfferEntry({ offer, memberProducts, locale }: {
+  offer: Offer; memberProducts: Product[]; locale: Locale;
+}) {
+  const name = translated(offer.name, offer.translations, locale);
+  const total = memberProducts.reduce((sum, product) => sum + product.price, 0);
+  // Prefer the stored "before" price; fall back to the live sum of member products.
+  const originalPrice = offer.originalPrice ?? total;
+  const saving = Math.max(0, Math.round((1 - offer.currentPrice / originalPrice) * 100));
+
+  const dailyLabel = locale === 'fr' ? 'Chaque jour' : locale === 'ar' ? 'كل يوم' : 'Every day';
+  const periodLabel = locale === 'fr' ? 'Période' : locale === 'ar' ? 'الفترة' : 'Dates';
+  const untilLabel = locale === 'fr' ? 'Le' : locale === 'ar' ? 'في' : 'On';
+
+  // Windows are collected first so they can be shown as one legible block
+  // instead of three separate footnotes the eye has to stitch together.
+  const windows: { key: string; icon: 'clock' | 'calendar'; label: string; value: string }[] = [];
+  if (offer.dailyFrom) {
+    windows.push({ key: 'daily', icon: 'clock', label: dailyLabel, value: `${offer.dailyFrom} – ${offer.dailyTo}` });
+  }
+  if (offer.startsAt) {
+    windows.push({ key: 'oneoff', icon: 'clock', label: untilLabel, value: `${offer.startsAt.replace('T', ' ')} → ${offer.endsAt ? offer.endsAt.replace('T', ' ') : '…'}` });
+  }
+  if (offer.validFrom || offer.validTo) {
+    windows.push({
+      key: 'dates',
+      icon: 'calendar',
+      label: periodLabel,
+      value: `${offer.validFrom ? formatOfferDate(offer.validFrom, locale) : '…'} → ${offer.validTo ? formatOfferDate(offer.validTo, locale) : '…'}`,
+    });
+  }
+
+  return <article className={`offer-entry${offer.image ? '' : ' is-imageless'}`} data-testid={`offer-card-${offer.id}`}>
+    {offer.image && <div className="offer-plate"><img src={offer.image} alt="" loading="lazy" decoding="async" /></div>}
+    <div className="offer-main">
+      <p className="offer-kicker">
+        <span>{locale === 'fr' ? 'Offre' : locale === 'ar' ? 'عرض' : 'Offer'}</span>
+        {saving > 0 && <span className="offer-saving">−{saving}%</span>}
+      </p>
+      <h3 className="offer-name">{name}</h3>
+      <ul className="offer-lines">
+        {memberProducts.map(product => <li className="offer-line" key={product.id}>
+          <span className="offer-line-name">{translated(product.name, product.translations, locale)}</span>
+          <span className="offer-line-leader" aria-hidden="true" />
+          <span className="offer-line-price">{formatPrice(product.price)}</span>
+        </li>)}
+      </ul>
+      <p className="offer-figures">
+        {saving > 0 && <s className="offer-was">{formatPrice(originalPrice)}</s>}
+        <strong className="offer-now">{formatPrice(offer.currentPrice)}</strong>
+      </p>
+      {windows.length > 0 && <dl className="offer-when">
+        {windows.map(window => <div className="offer-when-row" key={window.key}>
+          <dt>{window.icon === 'clock' ? <Clock3 aria-hidden="true" /> : <CalendarDays aria-hidden="true" />}<span>{window.label}</span></dt>
+          <dd>{window.value}</dd>
+        </div>)}
+      </dl>}
+    </div>
+  </article>;
+}
+
+export function CustomerMenu({ categories, products, offers = [], locale, onLocale, loading = false, preview = false, theme, onThemeToggle }: CustomerMenuProps) {
   const text = copyText[locale];
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Product | null>(null);
   const [activeCategory, setActiveCategory] = useState('');
   const [offline, setOffline] = useState(false);
+  const [showTop, setShowTop] = useState(false);
   const openerRef = useRef<HTMLButtonElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
@@ -135,6 +251,16 @@ export function CustomerMenu({ categories, products, locale, onLocale, loading =
 
   const resultCount = useMemo(() => [...productsByCategory.values()].reduce((count, items) => count + items.length, 0), [productsByCategory]);
 
+  // Offers pinned above the categories; hidden when hidden, not started, or finished.
+  const liveOffers = useMemo(() => {
+    const productById = new Map(products.map(product => [product.id, product]));
+    return offers
+      .filter(offer => isOfferLive(offer) && offer.products.length > 0)
+      .map(offer => ({ offer, members: offer.products.map(id => productById.get(id)).filter((p): p is Product => Boolean(p)) }))
+      .filter(entry => entry.members.length > 0)
+      .sort((l, r) => l.offer.position - r.offer.position);
+  }, [offers, products]);
+
   useEffect(() => {
     const update = () => setOffline(!navigator.onLine);
     window.addEventListener('offline', update);
@@ -142,6 +268,19 @@ export function CustomerMenu({ categories, products, locale, onLocale, loading =
     update();
     return () => { window.removeEventListener('offline', update); window.removeEventListener('online', update); };
   }, []);
+
+  // Reveal the back-to-top control once the guest is well past the hero.
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > Math.max(600, window.innerHeight * 0.9));
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  };
 
   useEffect(() => {
     if (!visibleCategories.length) return;
@@ -157,11 +296,14 @@ export function CustomerMenu({ categories, products, locale, onLocale, loading =
 
   useEffect(() => {
     if (!selected) {
-      openerRef.current?.focus();
+      // preventScroll matters: unlocking the body can drop the scroll position,
+      // and a plain focus() would then drag the guest back to this row.
+      openerRef.current?.focus({ preventScroll: true });
       openerRef.current = null;
       return;
     }
     const previousOverflow = document.body.style.overflow;
+    const lockedScrollY = window.scrollY;
     document.body.style.overflow = 'hidden';
     closeRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -186,6 +328,8 @@ export function CustomerMenu({ categories, products, locale, onLocale, loading =
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
+      // Re-assert where the guest was, so closing a sheet never scrolls the page.
+      if (window.scrollY !== lockedScrollY) window.scrollTo({ top: lockedScrollY, behavior: 'auto' });
     };
   }, [selected]);
 
@@ -198,6 +342,7 @@ export function CustomerMenu({ categories, products, locale, onLocale, loading =
     document.getElementById(`category-${id}`)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   };
   const skipLabel = locale === 'fr' ? 'Aller directement à la carte' : locale === 'ar' ? 'انتقل مباشرة إلى القائمة' : 'Skip to menu';
+  const topLabel = locale === 'fr' ? 'Revenir en haut' : locale === 'ar' ? 'العودة إلى الأعلى' : 'Back to top';
   const resultLabel = locale === 'fr' ? 'résultats' : locale === 'ar' ? 'نتائج' : 'results';
 
   return <div className={`menu-shell${preview ? ' menu-preview' : ''}`} dir={rtl ? 'rtl' : 'ltr'}>
@@ -209,7 +354,7 @@ export function CustomerMenu({ categories, products, locale, onLocale, loading =
     <section className="hero" aria-labelledby="menu-hero-title">
       <div className="hero-visual">
         <div className="hero-art">
-          <img className="hero-photo" src={`${import.meta.env.BASE_URL}lastrada-interior.jpg`} alt={locale === 'fr' ? 'Intérieur du café LASTRADA' : locale === 'ar' ? 'الديكور الداخلي لمقهى لاستـرادا' : 'Interior of LASTRADA café'} fetchPriority="high" data-testid="img-menu-hero" />
+          <img className="hero-photo" src={heroPicture.src} srcSet={heroPicture.srcSet} sizes={heroPicture.sizes} width={2048} height={1534} alt={locale === 'fr' ? 'Intérieur du café LASTRADA' : locale === 'ar' ? 'الديكور الداخلي لمقهى لاستـرادا' : 'Interior of LASTRADA café'} fetchPriority="high" decoding="async" data-testid="img-menu-hero" />
           <span className="hero-art-orbit" aria-hidden="true"><span className="hero-art-orbit-path" /><span className="hero-art-orbit-dot" /><Coffee size={20} strokeWidth={1.5} /></span>
           <span className="art-caption">{text.tagline}</span>
         </div>
@@ -226,6 +371,17 @@ export function CustomerMenu({ categories, products, locale, onLocale, loading =
       <SearchField value={query} onChange={setQuery} locale={locale} label={text.search} />
       {query.trim() && <p className="search-result-count" role="status" aria-live="polite">{resultCount} {resultLabel}</p>}
       <CategoryNavigation categories={visibleCategories} locale={locale} activeCategory={activeCategory} onSelect={jumpTo} rtl={rtl} />
+      {!loading && liveOffers.length > 0 && (
+        <section className="menu-offers" id="menu-offers" data-testid="section-offers" aria-labelledby="menu-offers-title">
+          <div className="category-heading">
+            <h2 id="menu-offers-title">{text.offers}</h2>
+            <span>{String(liveOffers.length).padStart(2, '0')} {locale === 'fr' ? 'OFFRES' : locale === 'ar' ? 'عروض' : 'OFFERS'}</span>
+          </div>
+          <div className="offer-list">
+            {liveOffers.map(({ offer, members }) => <OfferEntry key={offer.id} offer={offer} memberProducts={members} locale={locale} />)}
+          </div>
+        </section>
+      )}
       {loading ? <div className="menu-loading" aria-label={text.loading} aria-busy="true">{[1, 2, 3].map(n => <div className="skeleton" key={n} />)}</div> : resultCount === 0 ? <div className="empty-state" data-testid="empty-menu-search"><Search size={24} aria-hidden="true" /><p>{text.noResults}</p>{query && <button type="button" className="btn btn-quiet" onClick={() => setQuery('')}>{locale === 'fr' ? 'Effacer la recherche' : locale === 'ar' ? 'مسح البحث' : 'Clear search'}</button>}</div> :
         visibleCategories.map(category => {
           const items = productsByCategory.get(category.id) || [];
@@ -245,6 +401,12 @@ export function CustomerMenu({ categories, products, locale, onLocale, loading =
         <section><h3>{text.phoneTitle}</h3><p data-testid="text-phone-placeholder"><a href="tel:+21651524107">+216 51 524 107</a></p><h3 className="social-title">{text.socialTitle}</h3><div className="social-links" data-testid="text-social-placeholder"><a href="https://www.facebook.com/Lastrada24/" target="_blank" rel="noreferrer" aria-label="Facebook"><FaFacebookF size={17} aria-hidden="true" /><span>Facebook</span></a><a href="https://www.instagram.com/lastrada_lounge/?hl=en" target="_blank" rel="noreferrer" aria-label="Instagram"><FaInstagram size={18} aria-hidden="true" /><span>Instagram</span></a></div></section>
       </div>
     </footer>}
+    {/* Hidden while a product sheet is open: it would otherwise float over the
+        dialog and compete with it for taps. */}
+    {!preview && !selected && showTop && <button type="button" className="to-top is-visible" onClick={scrollToTop}
+      aria-label={topLabel} title={topLabel} data-testid="button-to-top">
+      <ArrowUp size={19} strokeWidth={1.8} aria-hidden="true" />
+    </button>}
     {selected && <ProductDetails product={selected} categoryLabel={translated(visibleCategories.find(category => category.id === selected.categoryId)?.name || '', visibleCategories.find(category => category.id === selected.categoryId)?.translations, locale)} locale={locale} rtl={rtl} closeRef={closeRef} dialogRef={dialogRef} closeLabel={text.close} onClose={() => setSelected(null)} />}
   </div>;
 }

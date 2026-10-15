@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from 'react';
 import { Router as WouterRouter, useLocation } from 'wouter';
-import { ArrowLeft, Check, ChevronRight, Coffee, Eye, Pencil, Plus, Trash2, Utensils, X, ImagePlus, Smartphone, LogOut, Tag, LayoutList, Search, GripVertical } from 'lucide-react';
-import { adminText, Category, Locale, Product, translated } from './menu-data';
+import { ArrowLeft, Check, ChevronRight, Coffee, Eye, Pencil, Plus, Trash2, Utensils, X, ImagePlus, Smartphone, LogOut, Tag, LayoutList, Search, GripVertical, Wrench } from 'lucide-react';
+import { adminText, Category, isOfferLive, Locale, MAX_OFFER_PRICE, Offer, offerBlockReason, offerWindowLabel, Product, todayStamp, translated } from './menu-data';
 import { CustomerMenu } from './components/menu/CustomerMenu';
 import { Brand, formatPrice, MenuLanguage, ThemeToggle, type Theme } from './components/menu/menu-ui';
+import { runImagePicker } from './image-picker';
+import { OfferEditor, scheduleModeOf, type ScheduleMode } from './components/OfferEditor';
 
-type AdminTab = 'categories' | 'products' | 'preview';
+type AdminTab = 'categories' | 'products' | 'offers' | 'preview';
 type ConfirmState = { title: string; message: string; action: () => void } | null;
-type StoreState = { categories: Category[]; products: Product[] };
+type StoreState = { categories: Category[]; products: Product[]; offers: Offer[] };
 
 const productSearchText: Record<Locale, { placeholder: string; empty: string }> = {
   fr: { placeholder: 'Rechercher un produit…', empty: 'Aucun produit ne correspond à cette recherche.' },
@@ -34,9 +36,9 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 const adminToasts = {
-  fr: { welcome: 'Bienvenue dans votre éditeur local.', categoryRemoved: 'Catégorie supprimée.', productRemoved: 'Produit supprimé.', categoryUpdated: 'Catégorie mise à jour.', categoryAdded: 'Catégorie ajoutée.', productUpdated: 'Produit mis à jour.', productAdded: 'Produit ajouté.', reset: 'Carte de démonstration restaurée.', signout: 'Déconnexion démo', bulkDeleted: 'Éléments supprimés.' },
-  en: { welcome: 'Welcome to your local editor.', categoryRemoved: 'Category deleted.', productRemoved: 'Product deleted.', categoryUpdated: 'Category updated.', categoryAdded: 'Category added.', productUpdated: 'Product updated.', productAdded: 'Product added.', reset: 'Demo menu restored.', signout: 'Demo sign out', bulkDeleted: 'Items deleted.' },
-  ar: { welcome: 'مرحباً بك في المحرر المحلي.', categoryRemoved: 'تم حذف الفئة.', productRemoved: 'تم حذف المنتج.', categoryUpdated: 'تم تحديث الفئة.', categoryAdded: 'تمت إضافة الفئة.', productUpdated: 'تم تحديث المنتج.', productAdded: 'تمت إضافة المنتج.', reset: 'تمت استعادة قائمة التجربة.', signout: 'الخروج من التجربة', bulkDeleted: 'تم حذف العناصر.' },
+  fr: { welcome: 'Bienvenue dans votre éditeur local.', categoryRemoved: 'Catégorie supprimée.', productRemoved: 'Produit supprimé.', categoryUpdated: 'Catégorie mise à jour.', categoryAdded: 'Catégorie ajoutée.', productUpdated: 'Produit mis à jour.', productAdded: 'Produit ajouté.', reset: 'Carte de démonstration restaurée.', signout: 'Déconnexion démo', bulkDeleted: 'Éléments supprimés.', offerRemoved: 'Offre supprimée.', offerUpdated: 'Offre mise à jour.', offerAdded: 'Offre créée.', offerProductAdded: 'Produit ajouté à l’offre.', offerProductRemoved: 'Produit retiré de l’offre.' },
+  en: { welcome: 'Welcome to your local editor.', categoryRemoved: 'Category deleted.', productRemoved: 'Product deleted.', categoryUpdated: 'Category updated.', categoryAdded: 'Category added.', productUpdated: 'Product updated.', productAdded: 'Product added.', reset: 'Demo menu restored.', signout: 'Demo sign out', bulkDeleted: 'Items deleted.', offerRemoved: 'Offer deleted.', offerUpdated: 'Offer updated.', offerAdded: 'Offer created.', offerProductAdded: 'Product added to the offer.', offerProductRemoved: 'Product removed from the offer.' },
+  ar: { welcome: 'مرحباً بك في المحرر المحلي.', categoryRemoved: 'تم حذف الفئة.', productRemoved: 'تم حذف المنتج.', categoryUpdated: 'تم تحديث الفئة.', categoryAdded: 'تمت إضافة الفئة.', productUpdated: 'تم تحديث المنتج.', productAdded: 'تمت إضافة المنتج.', reset: 'تمت استعادة قائمة التجربة.', signout: 'الخروج من التجربة', bulkDeleted: 'تم حذف العناصر.', offerRemoved: 'تم حذف العرض.', offerUpdated: 'تم تحديث العرض.', offerAdded: 'تم إنشاء العرض.', offerProductAdded: 'تمت إضافة المنتج إلى العرض.', offerProductRemoved: 'تمت إزالة المنتج من العرض.' },
 } as const;
 
 // ─── Drag helpers ───────────────────────────────────────────────────────────
@@ -48,6 +50,34 @@ function reorder<T>(list: T[], fromIndex: number, toIndex: number): T[] {
   return result;
 }
 
+/** Sum of the member product prices — the struck-through "before" price of an offer. */
+function offerTotalPrice(offer: Offer, products: Product[]) {
+  const byId = new Map(products.map(product => [product.id, product]));
+  return offer.products.reduce((sum, id) => sum + (byId.get(id)?.price ?? 0), 0);
+}
+
+function toDateInputValue(date?: string) {
+  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '';
+}
+
+/** Normalises an `<input type="date">` value into the `YYYY-MM-DD` the API expects. */
+function fromDateInputValue(value: FormDataEntryValue | null) {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : undefined;
+}
+
+/** Normalises an `<input type="time">` value into `HH:MM`. */
+function fromTimeInputValue(value: FormDataEntryValue | null) {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(raw) ? raw : undefined;
+}
+
+/** Normalises an `<input type="datetime-local">` value into `YYYY-MM-DDTHH:MM`. */
+function fromDateTimeInputValue(value: FormDataEntryValue | null) {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  return /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/.test(raw) ? raw : undefined;
+}
+
 function RoutedApp() {
   const [location, setLocation] = useLocation();
   const [locale, setLocale] = useState<Locale>(() => {
@@ -55,13 +85,14 @@ function RoutedApp() {
     return s === 'en' || s === 'ar' || s === 'fr' ? s : 'fr';
   });
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('lastrada-theme') as Theme) || 'light');
-  const [store, setStore] = useState<StoreState>({ categories: [], products: [] });
+  const [store, setStore] = useState<StoreState>({ categories: [], products: [], offers: [] });
   const [tab, setTab] = useState<AdminTab>('categories');
   const [signedIn, setSignedIn] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [modal, setModal] = useState<ConfirmState>(null);
   const [categoryDraft, setCategoryDraft] = useState<Category | null>(null);
   const [productDraft, setProductDraft] = useState<Product | null>(null);
+  const [offerDraft, setOfferDraft] = useState<Offer | null>(null);
   const [toast, setToast] = useState('');
   const [productQuery, setProductQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -76,6 +107,13 @@ function RoutedApp() {
   // Drag state for products
   const [dragProductId, setDragProductId] = useState<string | null>(null);
   const [dragOverProductId, setDragOverProductId] = useState<string | null>(null);
+  // Drag state for offers
+  const [dragOfferId, setDragOfferId] = useState<string | null>(null);
+  const [dragOverOfferId, setDragOverOfferId] = useState<string | null>(null);
+  // Product search inside the offer composer
+  const [offerProductQuery, setOfferProductQuery] = useState('');
+  // Which time limit the owner is editing, and therefore which fields are shown
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('all');
 
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -95,7 +133,7 @@ function RoutedApp() {
     }
   }, [isAdmin, locale]);
 
-  const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2600); };
+  const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 4000); };
 
   const saveStore = async (next: StoreState) => {
     try {
@@ -176,7 +214,7 @@ function RoutedApp() {
 
   const applyMenu = async (next: StoreState, successMessage: string) => {
     if (await saveStore(next)) {
-      setModal(null); setCategoryDraft(null); setProductDraft(null);
+      setModal(null); setCategoryDraft(null); setProductDraft(null); setOfferDraft(null); setOfferProductQuery('');
       notify(successMessage);
     }
   };
@@ -187,7 +225,14 @@ function RoutedApp() {
 
   const removeCategory = (id: string) => {
     const category = store.categories.find(c => c.id === id);
-    setModal({ title: a.deleteCategory, message: `${category?.name || ''} — ${a.removedCategory}`, action: () => { void applyMenu({ categories: store.categories.filter(c => c.id !== id).sort((l, r) => l.position - r.position).map((c, i) => ({ ...c, position: (i + 1) * 1000 })), products: store.products.filter(p => p.categoryId !== id) }, adminToasts[locale].categoryRemoved); } });
+    setModal({ title: a.deleteCategory, message: `${category?.name || ''} — ${a.removedCategory}`, action: () => {
+      const removedIds = new Set(store.products.filter(p => p.categoryId === id).map(p => p.id));
+      void applyMenu({
+        categories: store.categories.filter(c => c.id !== id).sort((l, r) => l.position - r.position).map((c, i) => ({ ...c, position: (i + 1) * 1000 })),
+        products: store.products.filter(p => p.categoryId !== id),
+        offers: store.offers.map(o => ({ ...o, products: o.products.filter(p => !removedIds.has(p)) })).filter(o => o.products.length > 0),
+      }, adminToasts[locale].categoryRemoved);
+    } });
   };
 
   const saveCategory = (event: FormEvent<HTMLFormElement>) => {
@@ -205,7 +250,14 @@ function RoutedApp() {
 
   const removeProduct = (id: string) => {
     const product = store.products.find(p => p.id === id);
-    setModal({ title: a.deleteProduct, message: `${product?.name || ''} — ${a.removedProduct}`, action: () => { void applyMenu({ ...store, products: store.products.filter(p => p.id !== id) }, adminToasts[locale].productRemoved); } });
+    setModal({ title: a.deleteProduct, message: `${product?.name || ''} — ${a.removedProduct}`, action: () => {
+      // Drop the product from every offer so no offer keeps a dangling reference.
+      void applyMenu({
+        ...store,
+        products: store.products.filter(p => p.id !== id),
+        offers: store.offers.map(o => ({ ...o, products: o.products.filter(p => p !== id) })).filter(o => o.products.length > 0),
+      }, adminToasts[locale].productRemoved);
+    } });
   };
 
   const saveProduct = (event: FormEvent<HTMLFormElement>) => {
@@ -219,28 +271,26 @@ function RoutedApp() {
     void applyMenu({ ...store, products: productDraft?.id ? store.products.map(p => p.id === item.id ? item : p) : [...store.products, item] }, productDraft?.id ? adminToasts[locale].productUpdated : adminToasts[locale].productAdded);
   };
 
-  const imageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  // Product and offer photos share one pipeline; only the setter differs.
+  const pickImage = (
+    apply: (dataUrl: string) => void,
+    messages: { notAnImage: string; failed: string },
+  ) => async (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
     const file = input.files?.[0];
-    input.value = '';
-    if (!file) return;
-    if (!file.type.startsWith('image/')) { notify(locale === 'fr' ? 'Choisissez un fichier image.' : locale === 'ar' ? 'يرجى اختيار ملف صورة.' : 'Please choose an image file.'); return; }
-    try {
-      const bitmap = await createImageBitmap(file);
-      const canvas = document.createElement('canvas');
-      canvas.width = 800; canvas.height = 800;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Canvas unavailable');
-      const scale = Math.min(800 / bitmap.width, 800 / bitmap.height);
-      const w = bitmap.width * scale; const h = bitmap.height * scale;
-      ctx.fillStyle = '#f7f3eb'; ctx.fillRect(0, 0, 800, 800);
-      ctx.drawImage(bitmap, (800 - w) / 2, (800 - h) / 2, w, h);
-      bitmap.close();
-      const blob = await new Promise<Blob>((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('WebP failed')), 'image/webp', 0.82));
-      const url = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => typeof r.result === 'string' ? res(r.result) : rej(new Error('Preview failed')); r.onerror = () => rej(new Error('Preview failed')); r.readAsDataURL(blob); });
-      setProductDraft(d => d ? { ...d, image: url } : d);
-    } catch { notify(locale === 'fr' ? 'Impossible de préparer cette image sur cet appareil.' : locale === 'ar' ? 'تعذر تجهيز الصورة على هذا الجهاز.' : 'This image could not be prepared on this device.'); }
+    input.value = ''; // allow re-picking the same file
+    await runImagePicker(file, apply, messages, notify);
   };
+
+  const imageChange = pickImage(
+    dataUrl => setProductDraft(d => (d ? { ...d, image: dataUrl } : d)),
+    { notAnImage: locale === 'fr' ? 'Choisissez un fichier image.' : locale === 'ar' ? 'يرجى اختيار ملف صورة.' : 'Please choose an image file.', failed: locale === 'fr' ? 'Impossible de préparer cette image sur cet appareil.' : locale === 'ar' ? 'تعذر تجهيز الصورة على هذا الجهاز.' : 'This image could not be prepared on this device.' },
+  );
+
+  const offerImageChange = pickImage(
+    dataUrl => setOfferDraft(d => (d ? { ...d, image: dataUrl } : d)),
+    { notAnImage: a.image, failed: locale === 'fr' ? 'Impossible de préparer cette image sur cet appareil.' : locale === 'ar' ? 'تعذر تجهيز الصورة على هذا الجهاز.' : 'This image could not be prepared on this device.' },
+  );
 
   // ── Multi-select ───────────────────────────────────────────────────────────
 
@@ -262,7 +312,7 @@ function RoutedApp() {
         const ids = selectedCatIds;
         const nextCats = store.categories.filter(c => !ids.has(c.id)).sort((l, r) => l.position - r.position).map((c, i) => ({ ...c, position: (i + 1) * 1000 }));
         const nextProds = store.products.filter(p => !ids.has(p.categoryId));
-        if (await saveStore({ categories: nextCats, products: nextProds })) { setModal(null); setSelectedCatIds(new Set()); notify(adminToasts[locale].bulkDeleted); }
+        if (await saveStore({ categories: nextCats, products: nextProds, offers: store.offers.map(o => ({ ...o, products: o.products.filter(p => store.products.some(k => k.id === p && ids.has(k.categoryId))) })).filter(o => o.products.length > 0) })) { setModal(null); setSelectedCatIds(new Set()); notify(adminToasts[locale].bulkDeleted); }
       },
     });
   };
@@ -315,6 +365,189 @@ function RoutedApp() {
   };
   const onProductDragEnd = () => { setDragProductId(null); setDragOverProductId(null); };
 
+  // ── Offer CRUD ─────────────────────────────────────────────────────────────
+
+  const sortedOffers = useMemo(() => [...store.offers].sort((l, r) => l.position - r.position), [store.offers]);
+
+  // Products offered for selection in the offer composer, matched on name + category.
+  const offerCandidateProducts = useMemo(() => {
+    const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase(locale);
+    const query = normalize(offerProductQuery.trim());
+    const byCategory = new Map(sortedCategories.map(c => [c.id, c]));
+    return store.products
+      .filter(product => !query || normalize([product.name, byCategory.get(product.categoryId)?.name || '', ...Object.values(product.translations || {})].join(' ')).includes(query))
+      .sort((l, r) => (byCategory.get(l.categoryId)?.position ?? 0) - (byCategory.get(r.categoryId)?.position ?? 0) || l.name.localeCompare(r.name, locale));
+  }, [store.products, offerProductQuery, sortedCategories, locale]);
+
+  const toggleOffer = (id: string) => saveStore({ ...store, offers: store.offers.map(o => o.id === id ? { ...o, available: o.available === false } : o) });
+
+  const removeOffer = (id: string) => {
+    const offer = store.offers.find(o => o.id === id);
+    setModal({ title: a.deleteOffer, message: `${offer?.name || ''} — ${a.removedOffer}`, action: () => {
+      void applyMenu({ ...store, offers: store.offers.filter(o => o.id !== id) }, adminToasts[locale].offerRemoved);
+    } });
+  };
+
+  // New offers open on today's window so the owner sees them live right away.
+  const startNewOffer = () => {
+    setOfferDraft({ id: '', name: '', position: (store.offers.length + 1) * 1000, currentPrice: 0, products: [], available: true });
+    setScheduleMode('all');
+    setOfferProductQuery('');
+  };
+  const editOffer = (offer: Offer) => { setOfferDraft(offer); setScheduleMode(scheduleModeOf(offer)); setOfferProductQuery(''); };
+  const closeOffer = () => { setOfferDraft(null); setOfferProductQuery(''); };
+
+  const toggleOfferProduct = (productId: string) => setOfferDraft(draft => {
+    if (!draft) return draft;
+    const selected = draft.products.includes(productId);
+    if (selected && draft.products.length === 1) { notify(a.offerNoProducts); return draft; }
+    return { ...draft, products: selected ? draft.products.filter(id => id !== productId) : [...draft.products, productId] };
+  });
+
+  const saveOffer = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const draft = offerDraft;
+    if (!draft) return;
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get('name')).trim();
+    const currentPrice = Number(form.get('currentPrice'));
+    const validFrom = fromDateInputValue(form.get('validFrom'));
+    const validTo = fromDateInputValue(form.get('validTo'));
+    const dailyFrom = fromTimeInputValue(form.get('dailyFrom'));
+    const dailyTo = fromTimeInputValue(form.get('dailyTo'));
+    const startsAt = fromDateTimeInputValue(form.get('startsAt'));
+    const endsAt = fromDateTimeInputValue(form.get('endsAt'));
+    // Only the selected mode's fields exist in the form, so the others are
+    // cleared here rather than lingering from a previous mode.
+    const keepDaily = scheduleMode === 'daily';
+    const keepDates = scheduleMode === 'dates';
+    const keepExact = scheduleMode === 'exact';
+    const useDailyFrom = keepDaily ? dailyFrom : undefined;
+    const useDailyTo = keepDaily ? dailyTo : undefined;
+    const useValidFrom = keepDates ? validFrom : undefined;
+    const useValidTo = keepDates ? validTo : undefined;
+    const useStartsAt = keepExact ? startsAt : undefined;
+    const useEndsAt = keepExact ? endsAt : undefined;
+    if (!name) { notify(a.offerNameRequired); return; }
+    if (draft.products.length === 0) { notify(a.offerNoProducts); return; }
+    if (!Number.isFinite(currentPrice) || currentPrice < 0) { notify(a.offerPriceInvalid); return; }
+    if (currentPrice > MAX_OFFER_PRICE) { notify(a.offerPriceTooHigh); return; }
+    if (useValidFrom && useValidTo && useValidFrom > useValidTo) { notify(a.offerDatesReversed); return; }
+    // A half-filled window would be silently ignored, so require both ends.
+    if (keepDaily && ((useDailyFrom === undefined) !== (useDailyTo === undefined))) { notify(a.offerHoursPair); return; }
+    if (useDailyFrom && useDailyTo && useDailyFrom > useDailyTo) { notify(a.offerHoursReversed); return; }
+    if (keepExact && ((useStartsAt === undefined) !== (useEndsAt === undefined))) { notify(a.offerOneOffPair); return; }
+    if (useStartsAt && useEndsAt && useStartsAt > useEndsAt) { notify(a.offerOneOffReversed); return; }
+    // The "before" price defaults to the sum of member products but stays editable.
+    const autoTotal = Math.round(offerTotalPrice(draft, store.products) * 1000) / 1000;
+    const rawOriginal = String(form.get('originalPrice') ?? '').trim();
+    const parsedOriginal = Number(rawOriginal);
+    if (rawOriginal !== '' && (!Number.isFinite(parsedOriginal) || parsedOriginal < 0 || parsedOriginal > MAX_OFFER_PRICE)) {
+      notify(a.offerPriceTooHigh);
+      return;
+    }
+    const originalPrice = rawOriginal !== '' ? parsedOriginal : autoTotal;
+    // A current price at or above the original would render a "discount" that is not one.
+    if (originalPrice <= currentPrice) { notify(a.offerNotCheaper); return; }
+    const item: Offer = {
+      id: draft.id || `offer-${Date.now()}`,
+      name,
+      position: draft.position,
+      currentPrice,
+      originalPrice,
+      products: [...draft.products],
+      image: draft.image,
+      translations: draft.translations,
+      available: draft.available ?? true,
+      ...(useValidFrom ? { validFrom: useValidFrom } : {}),
+      ...(useValidTo ? { validTo: useValidTo } : {}),
+      ...(useDailyFrom ? { dailyFrom: useDailyFrom } : {}),
+      ...(useDailyTo ? { dailyTo: useDailyTo } : {}),
+      ...(useStartsAt ? { startsAt: useStartsAt } : {}),
+      ...(useEndsAt ? { endsAt: useEndsAt } : {}),
+    };
+    void applyMenu({ ...store, offers: draft.id ? store.offers.map(o => o.id === item.id ? item : o) : [...store.offers, item] }, draft.id ? adminToasts[locale].offerUpdated : adminToasts[locale].offerAdded);
+  };
+
+  const onOfferDragStart = (e: DragEvent, id: string) => { setDragOfferId(id); e.dataTransfer.effectAllowed = 'move'; };
+  const onOfferDragOver = useCallback((e: DragEvent, id: string) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverOfferId(id); }, []);
+  const onOfferDrop = (e: DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!dragOfferId || dragOfferId === targetId) { setDragOfferId(null); setDragOverOfferId(null); return; }
+    const fromIndex = sortedOffers.findIndex(o => o.id === dragOfferId);
+    const toIndex = sortedOffers.findIndex(o => o.id === targetId);
+    if (fromIndex === -1 || toIndex === -1) { setDragOfferId(null); setDragOverOfferId(null); return; }
+    void saveStore({ ...store, offers: reorder(sortedOffers, fromIndex, toIndex).map((o, i) => ({ ...o, position: (i + 1) * 1000 })) });
+    setDragOfferId(null); setDragOverOfferId(null);
+  };
+  const onOfferDragEnd = () => { setDragOfferId(null); setDragOverOfferId(null); };
+
+  // Products the public menu can currently show — the same rule the API applies.
+  const visibleProductIds = useMemo(() => {
+    const activeCategories = new Set(store.categories.filter(c => c.available !== false).map(c => c.id));
+    return new Set(store.products.filter(p => p.available && activeCategories.has(p.categoryId)).map(p => p.id));
+  }, [store.categories, store.products]);
+
+  /** Why an offer is or is not visible to customers, in the owner's language. */
+  const offerStatus = (offer: Offer) => {
+    const reason = offerBlockReason(offer, visibleProductIds);
+    if (reason === 'hidden') return { key: 'unavailable', label: a.offerHidden };
+    if (reason === 'scheduled') return { key: 'scheduled', label: a.offerScheduled };
+    if (reason === 'expired') return { key: 'expired', label: a.offerExpired };
+    if (reason === 'no-products') return { key: 'expired', label: a.offerNoProducts };
+    if (reason === 'hidden-products') return { key: 'scheduled', label: a.offerHiddenProducts };
+    return { key: 'live', label: a.offerLive };
+  };
+
+  /** A short, actionable sentence explaining why the customer sees nothing. */
+  const offerBlockMessage = (offer: Offer) => {
+    switch (offerBlockReason(offer, visibleProductIds)) {
+      case 'hidden': return a.offerHiddenHint;
+      case 'scheduled': return a.offerScheduledHint;
+      case 'expired': return a.offerExpiredHint;
+      case 'between-hours': return `${a.offerBeforeHours} ${offer.dailyFrom}.`;
+      case 'today-done': return a.offerFinishedToday;
+      case 'not-started': return offer.startsAt ? `${a.offerNotStartedYet} ${a.offerHiddenUntil} ${offer.startsAt.replace('T', ' ')}.` : a.offerNotStartedYet;
+      case 'one-off-ended': return a.offerOneOffEnded;
+      case 'no-products': return a.offerNoProducts;
+      case 'hidden-products': return a.offerHiddenProductsHint;
+      default: return '';
+    }
+  };
+
+  /** The struck-through price: the owner's stored value, else the live product sum. */
+  const offerOriginalPrice = (offer: Offer) => offer.originalPrice ?? offerTotalPrice(offer, store.products);
+
+  /**
+   * Offers the customer can actually see, using the same rule as the API.
+   * The preview tab fed on the raw store before, so it happily displayed offers
+   * the public menu hides — the owner checked the preview and saw a lie.
+   */
+  const publiclyVisibleOffers = useMemo(
+    () => store.offers.filter(offer => offerBlockReason(offer, visibleProductIds) === null),
+    [store.offers, visibleProductIds],
+  );
+
+  /** Nudges a blocked offer into a window that is live right now. */
+  const makeOfferLive = (offer: Offer) => {
+    const today = todayStamp();
+    const end = new Date();
+    end.setDate(end.getDate() + 30);
+    void saveStore({
+      ...store,
+      offers: store.offers.map(o => o.id === offer.id ? {
+        ...o,
+        available: true,
+        validFrom: today,
+        validTo: todayStamp(end),
+        dailyFrom: undefined,
+        dailyTo: undefined,
+        startsAt: undefined,
+        endsAt: undefined,
+      } : o),
+    });
+  };
+
   // ── Category nav scroll ────────────────────────────────────────────────────
 
   const scrollToCategory = (catId: string) => {
@@ -323,7 +556,7 @@ function RoutedApp() {
     window.setTimeout(() => { const el = categoryRefs.current[catId]; if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
   };
 
-  if (!isAdmin) return <CustomerMenu categories={store.categories} products={store.products} locale={locale} onLocale={chooseLocale} loading={loading} theme={theme} onThemeToggle={toggleTheme} />;
+  if (!isAdmin) return <CustomerMenu categories={store.categories} products={store.products} offers={store.offers} locale={locale} onLocale={chooseLocale} loading={loading} theme={theme} onThemeToggle={toggleTheme} />;
   if (!authChecked || loading) return <main className="admin-login" aria-live="polite"><div className="login-card">{a.loading}</div></main>;
   if (!signedIn) return (
     <main className="admin-login" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
@@ -366,7 +599,6 @@ function RoutedApp() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <ThemeToggle theme={theme} onToggle={toggleTheme} locale={locale} />
           <MenuLanguage locale={locale} onChange={chooseLocale} />
-          <button className="btn btn-quiet admin-view-btn" onClick={() => setLocation('/')} data-testid="button-view-menu"><Eye size={15} /> <span>{a.view}</span></button>
           <button className="btn admin-signout-btn" onClick={signOut} aria-label={adminToasts[locale].signout} title={adminToasts[locale].signout} data-testid="button-admin-signout"><LogOut size={15} /> <span className="signout-label">{adminToasts[locale].signout}</span></button>
         </div>
       </header>
@@ -374,12 +606,12 @@ function RoutedApp() {
       <main className="admin-main">
         <div className="install-hint"><Smartphone size={18} /><span><strong>{a.installTitle}</strong><br />{a.installBody}</span></div>
         <div className="admin-title-row">
-          <div><div className="admin-kicker">{a.editor}</div><h1>{tab === 'categories' ? a.categories : tab === 'products' ? a.products : a.preview}</h1></div>
+          <div><div className="admin-kicker">{a.editor}</div><h1>{tab === 'categories' ? a.categories : tab === 'products' ? a.products : tab === 'offers' ? a.offers : a.preview}</h1></div>
         </div>
 
         {/* Tab nav */}
         <nav className="admin-nav" aria-label={a.editor}>
-          {([['categories', a.tabCategories, LayoutList], ['products', a.tabProducts, Coffee], ['preview', a.tabPreview, Eye]] as const).map(([key, label, Icon]) => (
+          {([['categories', a.tabCategories, LayoutList], ['products', a.tabProducts, Coffee], ['offers', a.tabOffers, Utensils], ['preview', a.tabPreview, Eye]] as const).map(([key, label, Icon]) => (
             <button key={key} className={tab === key ? 'active' : ''} onClick={() => changeTab(key)} data-testid={`tab-${key}`}><Icon size={15} style={{ verticalAlign: 'middle', marginInlineEnd: 7 }} />{label}</button>
           ))}
         </nav>
@@ -563,6 +795,75 @@ function RoutedApp() {
           </section>
         )}
 
+        {/* ── OFFERS TAB ── */}
+        {tab === 'offers' && (
+          <section className="admin-panel">
+            <div className="admin-panel-head">
+              <p className="panel-note">{a.offerNote}</p>
+              <button className="btn btn-primary" onClick={startNewOffer} data-testid="button-add-offer"><Plus size={15} /> {a.addOffer}</button>
+            </div>
+            {sortedOffers.length === 0 ? (
+              <div className="offer-empty" data-testid="empty-offers">
+                <Tag size={22} aria-hidden="true" />
+                <p>{a.emptyOffers}</p>
+                <button className="btn btn-primary" onClick={startNewOffer} data-testid="button-empty-add-offer"><Plus size={15} /> {a.addOffer}</button>
+              </div>
+            ) : (
+              <div className="admin-list">
+                {sortedOffers.map((offer, index) => {
+                  const status = offerStatus(offer);
+                  const total = offerOriginalPrice(offer);
+                  const memberNames = offer.products
+                    .map(id => store.products.find(p => p.id === id)?.name)
+                    .filter(Boolean)
+                    .join(' · ');
+                  return (
+                    <div key={offer.id} className={`admin-list-row dnd-row${dragOverOfferId === offer.id && dragOfferId !== offer.id ? ' dnd-over' : ''}${dragOfferId === offer.id ? ' dnd-dragging' : ''}`}
+                      draggable
+                      onDragStart={e => onOfferDragStart(e, offer.id)}
+                      onDragOver={e => onOfferDragOver(e, offer.id)}
+                      onDrop={e => onOfferDrop(e, offer.id)}
+                      onDragEnd={onOfferDragEnd}
+                      data-testid={`row-offer-${offer.id}`}>
+                      <span className="dnd-grip" aria-hidden="true"><GripVertical size={16} /></span>
+                      <span className="row-position">{String(index + 1).padStart(2, '0')}</span>
+                      {offer.image ? <span className="row-thumb" aria-hidden="true"><img src={offer.image} alt="" width={40} height={40} loading="lazy" /></span> : <span className="row-thumb placeholder-glyph" aria-hidden="true"><Tag size={16} /></span>}
+                      <div className="row-grow">
+                        <div className="row-title">{offer.name}</div>
+                        <div className="row-sub">
+                          <span className="offer-price-pair">
+                            <s>{formatPrice(total)}</s>
+                            <strong>{formatPrice(offer.currentPrice)}</strong>
+                          </span>
+                          {' · '}{offer.products.length} {a.offerProductsCount}
+                          {memberNames ? ` · ${memberNames}` : ''}
+                        </div>
+                        <div className="row-sub">
+                          <span className={`offer-status offer-status-${status.key}`}>{status.label}</span>
+                          {' · '}
+                          {offer.validFrom || offer.validTo ? `${offer.validFrom || '…'} → ${offer.validTo || '…'}` : a.offerNoDates}
+                          {offerWindowLabel(offer, locale) ? ` · ${offerWindowLabel(offer, locale)}` : ''}
+                        </div>
+                        {status.key !== 'live' && <div className="row-sub offer-block-hint">{offerBlockMessage(offer)}</div>}
+                      </div>
+                      {status.key !== 'live' && status.key !== 'unavailable' && (
+                        <button type="button" className="btn btn-quiet offer-fix" onClick={() => makeOfferLive(offer)} title={a.offerFixHint} data-testid={`button-fix-offer-${offer.id}`}>
+                          <Wrench size={13} aria-hidden="true" /> {a.offerFix}
+                        </button>
+                      )}
+                      <button className={`switch ${offer.available === false ? '' : 'on'}`} onClick={() => toggleOffer(offer.id)} role="switch" aria-checked={offer.available !== false} aria-label={`${a.availableToggle}: ${offer.name}`} data-testid={`toggle-offer-${offer.id}`} />
+                      <div className="row-actions">
+                        <button className="icon-btn" title={a.editOffer} aria-label={a.editOffer} onClick={() => editOffer(offer)} data-testid={`button-edit-offer-${offer.id}`}><Pencil size={14} /></button>
+                        <button className="icon-btn" title={a.delete} aria-label={a.delete} onClick={() => removeOffer(offer.id)} data-testid={`button-delete-offer-${offer.id}`}><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* ── PREVIEW TAB ── */}
         {tab === 'preview' && (
           <section className="admin-panel">
@@ -570,14 +871,14 @@ function RoutedApp() {
               <div><h2>{a.previewTitle}</h2><p>{a.previewBody}</p></div>
               <MenuLanguage locale={locale} onChange={chooseLocale} />
             </div>
-            <div className="admin-preview-frame"><CustomerMenu categories={store.categories} products={store.products} locale={locale} onLocale={chooseLocale} theme={theme} onThemeToggle={toggleTheme} preview /></div>
+            <div className="admin-preview-frame"><CustomerMenu categories={store.categories} products={store.products} offers={publiclyVisibleOffers} locale={locale} onLocale={chooseLocale} theme={theme} onThemeToggle={toggleTheme} preview /></div>
           </section>
         )}
       </main>
 
       {/* Mobile bottom toolbar */}
       <nav className="mobile-admin-toolbar">
-        {([['categories', a.tabCategories, LayoutList], ['products', a.tabProducts, Utensils], ['preview', a.tabPreview, Eye]] as const).map(([key, label, Icon]) => (
+        {([['categories', a.tabCategories, LayoutList], ['products', a.tabProducts, Utensils], ['offers', a.tabOffers, Utensils], ['preview', a.tabPreview, Eye]] as const).map(([key, label, Icon]) => (
           <button key={key} className={tab === key ? 'active' : ''} onClick={() => changeTab(key)} data-testid={`mobile-tab-${key}`}><Icon />{label}</button>
         ))}
         <button className="admin-add-mobile" aria-label={a.quickAdd} title={a.quickAdd} onClick={() => sortedCategories.length ? setProductDraft({ id: '', categoryId: sortedCategories[0].id, name: '', description: '', price: 0, available: true }) : setTab('categories')} data-testid="button-mobile-quick-add"><Plus /><span className="sr-only">{a.quickAdd}</span></button>
@@ -625,6 +926,21 @@ function RoutedApp() {
         </div>
       )}
 
+      {/* ── Offer editor modal ── */}
+      {offerDraft && <OfferEditor
+        key={offerDraft.id || 'new'}
+        draft={offerDraft}
+        products={store.products}
+        categories={sortedCategories}
+        visibleProductIds={visibleProductIds}
+        locale={locale}
+        notify={notify}
+        onChange={setOfferDraft}
+        onToggleProduct={toggleOfferProduct}
+        onSave={saveOffer}
+        onClose={closeOffer}
+      />}
+
       {/* ── Confirm modal ── */}
       {modal && (
         <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setModal(null); }}>
@@ -645,8 +961,25 @@ function RoutedApp() {
   );
 }
 
+// Offer CRUD section will go here
+// Offer CRUD section will go here
 function App() {
   return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><RoutedApp /></WouterRouter>;
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

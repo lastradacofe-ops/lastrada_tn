@@ -1,0 +1,56 @@
+  // Offer CRUD strings (hardcoded for now)
+  const offerNoteStrings = {
+    fr: 'Les offres permettent de regrouper plusieurs produits à un prix spécial.',
+    en: 'Offers allow grouping multiple products at a special price.',
+    ar: 'Offers allow grouping multiple products at a special price.',
+  };
+  const offerToastStrings = {
+    fr: { offerAdded: 'Offre ajoutée.', offerRemoved: 'Offre supprimée.' },
+    en: { offerAdded: 'Offer added.', offerRemoved: 'Offer removed.' },
+    ar: { offerAdded: 'Offer added.', offerRemoved: 'Offer removed.' },
+  };
+  const getSortedOffers = () => [...store.offers].sort((a, b) => a.position - b.position);
+  const saveOffer = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get('name')).trim();
+    const currentPrice = Number(form.get('price'));
+    const validityDuration = String(form.get('validityDuration')).trim();
+    const originalPrice = form.get('originalPrice') ? Number(form.get('originalPrice')) : undefined;
+    const image = form.get('image') as string | null;
+    const productIds = form.getAll('productIds');
+    if (!name || !Number.isFinite(currentPrice) || currentPrice < 0 || productIds.length === 0) {
+      const msg = 'Please fill in all required fields and select at least one product.';
+      notify(msg);
+      return;
+    }
+    const offer: Offer = {
+      id: offerDraft?.id || ('offer-'.concat(Date.now().toString())),
+      name,
+      position: offerDraft?.position ?? 0,
+      validityDuration: validityDuration || undefined,
+      originalPrice,
+      currentPrice,
+      image: image || undefined,
+      products: productIds,
+    };
+    if (offerDraft?.id) {
+      void applyMenu({ ...store, offers: store.offers.map(o => o.id === offer.id ? offer : o) }, offerToastStrings[locale].offerAdded);
+    } else {
+      void applyMenu({ ...store, offers: [...store.offers, offer] }, offerToastStrings[locale].offerAdded);
+    }
+  };
+  const removeOffer = (id: string) => {
+    const offer = store.offers.find(o => o.id === id);
+    setModal({
+      title: a.deleteOffer,
+      message: (offer?.name || '') + ' \u2014' + a.removedOffer,
+      action: async () => {
+        const nextOffers = store.offers.filter(o => o.id !== id).sort((l, r) => l.position - r.position).map((o, i) => ({ ...o, position: ((i + 1) * 1000) }));
+        if (await applyMenu({ ...store, offers: nextOffers })) {
+          setModal(null);
+          notify(offerToastStrings[locale].offerRemoved);
+        }
+      },
+    });
+  };

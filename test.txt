@@ -1,0 +1,11 @@
+  // Offer CRUD strings (hardcoded for now)
+  const offerNoteStrings = {
+    fr: 'Les offres permettent de regrouper plusieurs produits à un prix spécial.',
+    en: 'Offers allow grouping multiple products at a special price.',
+    ar: '???? ?????? ?????? plusieurs produits ???? ???.',
+  };
+  const offerToastStrings = {
+    fr: { offerAdded: 'Offre ajoutée.', offerRemoved: 'Offre supprimée.' },
+    en: { offerAdded: 'Offer added.', offerRemoved: 'Offer removed.' },
+    ar: { offerAdded: '?? ????? ?????.', offerRemoved: '?? ??? ?????.' },
+  };
