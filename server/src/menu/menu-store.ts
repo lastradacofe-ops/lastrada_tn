@@ -2,9 +2,9 @@ import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MenuPayloadSchema } from '@workspace/api-zod';
-import { seededCategories, seededProducts, type Category, type Product } from './seed-data';
+import { seededCategories, seededProducts, type Category, type Offer, type Product } from './seed-data';
 
-export type MenuStore = { categories: Category[]; products: Product[] };
+export type MenuStore = { categories: Category[]; products: Product[]; offers: Offer[] };
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const dataDirectory = path.resolve(moduleDirectory, path.basename(moduleDirectory) === 'menu' ? '../../data' : '../data');
@@ -22,6 +22,7 @@ function initialMenu(): MenuStore {
   return {
     categories: structuredClone(seededCategories),
     products: structuredClone(seededProducts),
+    offers: [],
   };
 }
 
@@ -42,6 +43,25 @@ function hasValidReferences(menu: MenuStore) {
       !product.name.trim() || !Number.isFinite(product.price) || product.price < 0 ||
       typeof product.available !== 'boolean' || productIds.has(product.id)) return false;
     productIds.add(product.id);
+  }
+  // Offers must reference existing products only, and cannot reuse a product twice.
+  for (const offer of menu.offers ?? []) {
+    if (!offer || typeof offer.id !== 'string' || !offer.id ||
+      typeof offer.name !== 'string' || !offer.name.trim() ||
+      !Number.isFinite(offer.currentPrice) || offer.currentPrice < 0 ||
+      (offer.originalPrice !== undefined &&
+        (!Number.isFinite(offer.originalPrice) || offer.originalPrice < 0)) ||
+      (offer.validFrom !== undefined && offer.validTo !== undefined && offer.validFrom > offer.validTo) ||
+      (offer.dailyFrom !== undefined && offer.dailyTo !== undefined && offer.dailyFrom > offer.dailyTo) ||
+      (offer.startsAt !== undefined && offer.endsAt !== undefined && offer.startsAt > offer.endsAt) ||
+      (offer.dailyFrom === undefined) !== (offer.dailyTo === undefined) ||
+      (offer.startsAt === undefined) !== (offer.endsAt === undefined) ||
+      !Array.isArray(offer.products) || offer.products.length === 0) return false;
+    const referenced = new Set<string>();
+    for (const productId of offer.products) {
+      if (!productIds.has(productId) || referenced.has(productId)) return false;
+      referenced.add(productId);
+    }
   }
   return true;
 }

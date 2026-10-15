@@ -1,6 +1,15 @@
 export type Locale = 'fr' | 'ar' | 'en';
 export type LocalizedText = Partial<Record<Locale, string>>;
 export type Category = { id: string; name: string; position: number; available?: boolean; translations?: LocalizedText };
+export type Offer = {
+  id: string; name: string; position: number;
+  validFrom?: string; validTo?: string;
+  dailyFrom?: string; dailyTo?: string;
+  startsAt?: string; endsAt?: string;
+  originalPrice?: number; currentPrice: number;
+  image?: string; products: string[];
+  translations?: LocalizedText; available?: boolean;
+};
 export type Product = { id: string; categoryId: string; name: string; description?: string; price: number; image?: string; available: boolean; translations?: LocalizedText; descriptions?: LocalizedText; position?: number };
 export const seededCategories: Category[] = [
   {
@@ -139,6 +148,12 @@ export const seededCategories: Category[] = [
     "id": "snacks-sales",
     "name": "Snacks Salés",
     "position": 130000,
+    "available": true
+  },
+  {
+    "id": "offers",
+    "name": "Offres Spéciales",
+    "position": 140000,
     "available": true
   }
 ];
@@ -1883,3 +1898,5 @@ export const seededProducts: Product[] = [
     "available": true
   }
 ];
+
+
